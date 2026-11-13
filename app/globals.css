@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+/* Dark mode is driven by data-theme on <html> (light | dark), resolved from the
+   user's choice (light / dark / system) before first paint — see layout.tsx */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Sidebar collapse is driven by data-sidebar="collapsed" on <html> (set before paint, see layout.tsx),
+   so the sidebar and the content margin can react with pure CSS. */
+@custom-variant collapsed (&:where([data-sidebar="collapsed"] *));
+
+/* ---------- bryl-minimal tokens (raw RGB channels) ---------- */
+:root {
+  --bg: 255 255 255;
+  --ink: 10 10 10;
+  --g50: 250 250 250;
+  --g100: 245 245 245;
+  --g200: 233 233 233;
+  --g300: 212 212 212;
+  --g400: 163 163 163;
+  --g500: 115 115 115;
+  --g600: 82 82 82;
+  --g700: 64 64 64;
+  --g800: 38 38 38;
+  --g900: 23 23 23;
+
+  /* GitHub's contribution greens (none → most) */
+  --gh0: #ebedf0;
+  --gh1: #9be9a8;
+  --gh2: #40c463;
+  --gh3: #30a14e;
+  --gh4: #216e39;
+
+  --dot: rgb(10 10 10 / 0.9);
+  --card-shadow: 0 8px 22px -14px rgb(0 0 0 / 0.25);
+  --card-shadow-hover: 0 18px 36px -20px rgb(0 0 0 / 0.4);
+  color-scheme: light;
+}
+
+/* Dark is a re-mapping of the same roles, not a redesign */
+[data-theme="dark"] {
+  --bg: 12 12 15;
+  --ink: 244 244 245;
+  --g50: 24 24 27;
+  --g100: 30 30 34;
+  --g200: 42 42 48;
+  --g300: 58 58 66;
+  --g400: 138 138 146;
+  --g500: 160 160 168;
+  --g600: 180 180 188;
+  --g700: 205 205 212;
+  --g800: 225 225 230;
+  --g900: 236 236 240;
+
+  --gh0: #161b22;
+  --gh1: #0e4429;
+  --gh2: #006d32;
+  --gh3: #26a641;
+  --gh4: #39d353;
+
+  --dot: rgb(244 244 245 / 0.42);
+  --card-shadow: 0 1px 0 0 rgb(0 0 0 / 0.2);
+  --card-shadow-hover: 0 1px 0 0 rgb(0 0 0 / 0.3);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: rgb(var(--bg));
+  --color-ink: rgb(var(--ink));
+  --color-g50: rgb(var(--g50));
+  --color-g100: rgb(var(--g100));
+  --color-g200: rgb(var(--g200));
+  --color-g300: rgb(var(--g300));
+  --color-g400: rgb(var(--g400));
+  --color-g500: rgb(var(--g500));
+  --color-g600: rgb(var(--g600));
+  --color-g700: rgb(var(--g700));
+  --color-g800: rgb(var(--g800));
+  --color-g900: rgb(var(--g900));
+
+  --font-sans: var(--font-geist), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, Menlo, Consolas, monospace;
+  --font-pixel: var(--font-geist-pixel), var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-source-serif), Georgia, serif;
+
+  --shadow-card: var(--card-shadow);
+  --shadow-card-hover: var(--card-shadow-hover);
+
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-pulse-dot: pulse-dot 1.8s ease-in-out infinite;
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+  }
+}
+
+/* ---------- Base ---------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--g300)) transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: rgb(var(--bg));
+    color: rgb(var(--ink));
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overflow-x: clip; /* the portrait's dust may drift past the edge of a small screen */
+  }
+  ::selection { background: rgb(var(--ink)); color: rgb(var(--bg)); }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--g300)); border-radius: 999px; }
+  :focus-visible { outline: 2px solid rgb(var(--ink)); outline-offset: 3px; border-radius: 4px; }
+  button { cursor: pointer; }
+}
+
+/* ---------- Custom utilities ---------- */
+
+/* Signature micro-label: tiny, mono, uppercase, wide tracking (set colour with text-g400/500) */
+@utility micro {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  /* a touch larger on phones and tablets, where 10px is hard to read */
+  @media (max-width: 1023px) {
+    font-size: 11px;
+  }
+}
+
+/* Text link: underline at 25% opacity, rising to full on hover */
+@utility link {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 25%, transparent);
+  transition: text-decoration-color 200ms ease;
+  &:hover { text-decoration-color: currentColor; }
+}
+
+/* Halftone dots (9px cell) — always paired with a fade mask */
+@utility halftone {
+  background-image: radial-gradient(circle, var(--dot) 1px, transparent 1.5px);
+  background-size: 9px 9px;
+}
+@utility halftone-fine {
+  background-image: radial-gradient(circle, var(--dot) 1px, transparent 1.5px);
+  background-size: 6px 6px;
+}
+@utility mask-corner {
+  -webkit-mask-image: radial-gradient(circle at 100% 0%, #000 0%, rgb(0 0 0 / 0.35) 35%, transparent 68%);
+  mask-image: radial-gradient(circle at 100% 0%, #000 0%, rgb(0 0 0 / 0.35) 35%, transparent 68%);
+}
+@utility mask-band {
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 0%, rgb(0 0 0 / 0.3) 45%, transparent 72%);
+  mask-image: radial-gradient(ellipse at 50% 50%, #000 0%, rgb(0 0 0 / 0.3) 45%, transparent 72%);
+}
+@utility mask-dissolve-down {
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgb(0 0 0 / 0.4) 45%, transparent 85%);
+  mask-image: linear-gradient(180deg, #000 0%, rgb(0 0 0 / 0.4) 45%, transparent 85%);
+}
+
+/* ---------- The mascot sitting on the name ---------- */
+@keyframes mascot-pop {
+  0% { transform: translateY(-28px) scale(0.6); opacity: 0; }
+  60% { transform: translateY(3px) scale(1.06); opacity: 1; }
+  80% { transform: translateY(-1px) scale(0.98); }
+  100% { transform: none; opacity: 1; }
+}
+@keyframes mascot-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+@keyframes mascot-blink { 0%, 90%, 100% { transform: scaleY(1); } 94% { transform: scaleY(0.1); } }
+@keyframes mascot-swing { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
+@keyframes mascot-wave { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-40deg); } 75% { transform: rotate(10deg); } }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
+.mascot-pop { animation: mascot-pop 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.mascot-bob { animation: mascot-bob 2.4s ease-in-out infinite; }
+.mascot-eye { animation: mascot-blink 4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.mascot-leg { animation: mascot-swing 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: top center; }
+.mascot-leg-alt { animation-delay: -0.8s; }
+.mascot-wave { animation: mascot-wave 0.9s ease-in-out 3; transform-box: fill-box; transform-origin: left center; }
+.bubble-in { animation: bubble-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes mascot-talk { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1.6); } }
+.mascot-mouth { animation: mascot-talk 0.26s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+/* ---------- Entrance: fade up 12px over 700ms, staggered (--d set by <Reveal>) ---------- */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.reveal { opacity: 0; transform: translateY(12px); }
+.reveal[data-in="true"] {
+  animation: fade-up 700ms var(--ease-expo, cubic-bezier(0.16, 1, 0.3, 1)) var(--d, 50ms) forwards;
+}
+
+/* ---------- Theme switching ---------- */
+html.theme-fading *,
+html.theme-fading *::before,
+html.theme-fading *::after {
+  transition: background-color 500ms ease, color 500ms ease, border-color 500ms ease,
+    text-decoration-color 500ms ease, box-shadow 500ms ease !important;
+}
+html.vt *, html.vt *::before, html.vt *::after { transition: none !important; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+/* ---------- Reduced motion: the design is complete when perfectly still ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1 !important; transform: none !important; }
+}

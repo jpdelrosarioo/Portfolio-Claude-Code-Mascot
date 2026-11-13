@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>JP Del Rosario</title>
+  <!-- EDIT: one-sentence summary used by search engines and link previews -->
+  <meta name="description" content="JP Del Rosario — portfolio, projects and contact." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%230a0a0a'/%3E%3Crect x='4' y='4' width='2' height='6' fill='%23fff'/%3E%3Crect x='2' y='10' width='4' height='2' fill='%23fff'/%3E%3Crect x='8' y='4' width='4' height='2' fill='%23fff'/%3E%3Crect x='8' y='6' width='2' height='6' fill='%23fff'/%3E%3Crect x='12' y='6' width='2' height='2' fill='%23fff'/%3E%3Crect x='10' y='8' width='2' height='2' fill='%23fff'/%3E%3C/svg%3E" />
+
+  <!-- Resolve the theme before first paint so there is no flash -->
+  <script>
+    (function () {
+      var r = document.documentElement, c = 'system';
+      r.classList.add('js');
+      try { c = localStorage.getItem('theme') || 'system'; } catch (e) {}
+      var dark = c === 'dark' || (c === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      r.dataset.theme = dark ? 'dark' : 'light';
+      r.dataset.themeChoice = c;
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="main.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- ───────── Mobile top bar (< 1024px) ───────── -->
+  <header class="topbar">
+    <a class="brand-mini" href="#top">jp del rosario</a>
+    <div class="topbar-actions">
+      <button class="text-btn" type="button" data-cycle-theme aria-label="Change theme">
+        <span class="theme-glyph" aria-hidden="true"></span><span data-label>system</span>
+      </button>
+      <button class="text-btn" type="button" data-menu-open aria-expanded="false" aria-controls="menu">Menu</button>
+    </div>
+  </header>
+
+  <!-- ───────── Full-screen mobile menu ───────── -->
+  <div class="menu" id="menu" role="dialog" aria-modal="true" aria-label="Site menu" hidden>
+    <div class="menu-head">
+      <span class="brand-mini">jp del rosario</span>
+      <button class="text-btn" type="button" data-menu-close>Close</button>
+    </div>
+    <nav aria-label="Mobile">
+      <ol class="menu-links">
+        <li><a href="#top"><span>00</span>index</a></li>
+        <li><a href="#about"><span>01</span>about</a></li>
+        <li><a href="#projects"><span>02</span>projects</a></li>
+        <li><a href="#experience"><span>03</span>experience</a></li>
+        <li><a href="#stack"><span>04</span>stack</a></li>
+        <li><a href="#contact"><span>05</span>contact</a></li>
+      </ol>
+    </nav>
+    <div class="menu-foot">
+      <div class="theme-switch" role="group" aria-label="Theme">
+        <button type="button" data-set-theme="light">Light</button>
+        <button type="button" data-set-theme="dark">Dark</button>
+        <button type="button" data-set-theme="system">Auto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────── Desktop sidebar (≥ 1024px) ───────── -->
+  <aside class="sidebar">
+    <a class="brand" href="#top">
+      <span class="brand-mark pixel">jp</span>
+      <span class="brand-name">JP Del Rosario</span>
+      <!-- EDIT: your role -->
+      <span class="micro">Developer · Designer</span>
+    </a>
+
+    <nav class="side-group" aria-label="Primary">
+      <ul class="side-nav">
+        <li><a href="#top" data-nav>index</a></li>
+        <li><a href="#about" data-nav>about</a></li>
+        <li><a href="#projects" data-nav>projects</a></li>
+        <li><a href="#experience" data-nav>experience</a></li>
+        <li><a href="#stack" data-nav>stack</a></li>
+        <li><a href="#contact" data-nav>contact</a></li>
+      </ul>
+    </nav>
+
+    <div class="side-group">
+      <p class="micro side-label">Elsewhere</p>
+      <!-- EDIT: your profile URLs -->
+      <ul class="side-nav side-ext">
+        <li><a href="https://github.com/" target="_blank" rel="noopener">github <span class="ext">↗</span></a></li>
+        <li><a href="https://www.linkedin.com/" target="_blank" rel="noopener">linkedin <span class="ext">↗</span></a></li>
+        <li><a href="#" target="_blank" rel="noopener">resume <span class="ext">↗</span></a></li>
+      </ul>
+    </div>
+
+    <div class="side-bottom">
+      <div class="theme-switch" role="group" aria-label="Theme">
+        <button type="button" data-set-theme="light">Light</button>
+        <button type="button" data-set-theme="dark">Dark</button>
+        <button type="button" data-set-theme="system">Auto</button>
+      </div>
+      <p class="status micro"><span class="dot" aria-hidden="true"></span>Open to work</p>
+    </div>
+  </aside>
+
+  <!-- ───────── Content ───────── -->
+  <main id="main">
+    <div class="container">
+
+      <!-- Hero -->
+      <header class="hero" id="top" data-reveal-group>
+        <div class="halftone hero-dots" aria-hidden="true"></div>
+        <p class="micro reveal">Portfolio — <span data-year>2026</span></p>
+        <h1 class="page-title pixel reveal">jp del rosario</h1>
+        <!-- EDIT: your one-line introduction -->
+        <p class="lede reveal">
+          I'm JP — a developer and designer who builds quiet, well-made software for the web.
+          <span class="muted">I care about clear interfaces, honest typography and code that is pleasant to come back to.</span>
+        </p>
+        <p class="status micro reveal"><span class="dot" aria-hidden="true"></span>Available for new projects</p>
+        <div class="actions reveal">
+          <a class="btn-primary" href="#contact">Get in touch</a>
+          <a class="arrow-link" href="#projects">View projects <span class="arrow" aria-hidden="true">↗</span></a>
+        </div>
+      </header>
+
+      <!-- 01 — about -->
+      <section id="about" aria-labelledby="about-label" data-reveal-group>
+        <h2 class="section-label pixel reveal" id="about-label">01 — about</h2>
+        <!-- EDIT: a short bio in your own words -->
+        <div class="prose reveal">
+          <p>
+            I design and build products end to end — from the first rough sketch to the last detail that ships.
+            Most of my work sits where engineering meets design: interfaces, design systems, and the tools people use every day.
+          </p>
+          <p>
+            Lately I've been exploring how small teams can move fast without making a mess, and writing about what I learn along the way.
+            When I'm away from the keyboard, you'll find me <a href="#contact">somewhere with a good cup of coffee</a>.
+          </p>
+        </div>
+        <!-- EDIT: replace 00 with your real numbers -->
+        <dl class="cells cells-3 reveal">
+          <div class="cell"><dt class="micro">Years building</dt><dd class="stat pixel">00</dd></div>
+          <div class="cell"><dt class="micro">Projects shipped</dt><dd class="stat pixel">00</dd></div>
+          <div class="cell"><dt class="micro">Happy clients</dt><dd class="stat pixel">00</dd></div>
+        </dl>
+      </section>
+
+      <!-- 02 — projects -->
+      <section id="projects" aria-labelledby="projects-label" data-reveal-group>
+        <h2 class="section-label pixel reveal" id="projects-label">02 — projects</h2>
+        <p class="section-intro reveal">A few things I've made. Each one taught me something different.</p>
+
+        <!-- EDIT: replace each card's link, year, title, description and tags -->
+        <div class="projects">
+          <a class="card card-featured reveal" href="#" target="_blank" rel="noopener">
+            <div class="thumb">
+              <div class="thumb-art thumb-halftone"><span class="pixel">01</span></div>
+            </div>
+            <div class="card-body">
+              <div class="card-meta">
+                <span class="micro">2026 · Web app</span>
+                <span class="tag tag-featured">Featured</span>
+              </div>
+              <h3 class="card-title">Project one <span class="ext">↗</span></h3>
+              <p class="card-desc">Your best work goes here. One or two sentences on what it is, who it's for, and the part you're proudest of.</p>
+              <ul class="tags" aria-label="Built with">
+                <li class="tag">TypeScript</li><li class="tag">Next.js</li><li class="tag">Postgres</li>
+              </ul>
+            </div>
+          </a>
+
+          <a class="card reveal" href="#" target="_blank" rel="noopener">
+            <div class="thumb"><div class="thumb-art"><span class="pixel">02</span></div></div>
+            <div class="card-body">
+              <div class="card-meta"><span class="micro">2025 · Design system</span></div>
+              <h3 class="card-title">Project two <span class="ext">↗</span></h3>
+              <p class="card-desc">A short description of the problem and how you solved it.</p>
+              <ul class="tags" aria-label="Built with"><li class="tag">React</li><li class="tag">Figma</li></ul>
+            </div>
+          </a>
+
+          <a class="card reveal" href="#" target="_blank" rel="noopener">
+            <div class="thumb"><div class="thumb-art"><span class="pixel">03</span></div></div>
+            <div class="card-body">
+              <div class="card-meta"><span class="micro">2025 · Mobile</span></div>
+              <h3 class="card-title">Project three <span class="ext">↗</span></h3>
+              <p class="card-desc">What it does, in plain words, and the result it produced.</p>
+              <ul class="tags" aria-label="Built with"><li class="tag">React Native</li><li class="tag">Expo</li></ul>
+            </div>
+          </a>
+
+          <a class="card reveal" href="#" target="_blank" rel="noopener">
+            <div class="thumb"><div class="thumb-art"><span class="pixel">04</span></div></div>
+            <div class="card-body">
+              <div class="card-meta"><span class="micro">2024 · Open source</span></div>
+              <h3 class="card-title">Project four <span class="ext">↗</span></h3>
+              <p class="card-desc">A tool, library or experiment — and why someone would use it.</p>
+              <ul class="tags" aria-label="Built with"><li class="tag">Node</li><li class="tag">CLI</li></ul>
+            </div>
+          </a>
+
+          <a class="card reveal" href="#" target="_blank" rel="noopener">
+            <div class="thumb"><div class="thumb-art"><span class="pixel">05</span></div></div>
+            <div class="card-body">
+              <div class="card-meta"><span class="micro">2024 · Website</span></div>
+              <h3 class="card-title">Project five <span class="ext">↗</span></h3>
+              <p class="card-desc">A client or personal site, with one line on the outcome.</p>
+              <ul class="tags" aria-label="Built with"><li class="tag">Astro</li><li class="tag">CSS</li></ul>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      <!-- 03 — experience -->
+      <section id="experience" aria-labelledby="experience-label" data-reveal-group>
+        <h2 class="section-label pixel reveal" id="experience-label">03 — experience</h2>
+        <!-- EDIT: your roles, newest first -->
+        <ol class="xp">
+          <li class="xp-row reveal">
+            <span class="micro xp-date">20XX — Now</span>
+            <div>
+              <h3 class="xp-role">Role title <span class="muted">· Company name</span></h3>
+              <p class="xp-desc">One sentence on what you owned and the impact it had.</p>
+            </div>
+          </li>
+          <li class="xp-row reveal">
+            <span class="micro xp-date">20XX — 20XX</span>
+            <div>
+              <h3 class="xp-role">Role title <span class="muted">· Company name</span></h3>
+              <p class="xp-desc">One sentence on what you owned and the impact it had.</p>
+            </div>
+          </li>
+          <li class="xp-row reveal">
+            <span class="micro xp-date">20XX — 20XX</span>
+            <div>
+              <h3 class="xp-role">Role title <span class="muted">· Company name</span></h3>
+              <p class="xp-desc">One sentence on what you owned and the impact it had.</p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <!-- 04 — stack -->
+      <section id="stack" aria-labelledby="stack-label" data-reveal-group>
+        <h2 class="section-label pixel reveal" id="stack-label">04 — stack</h2>
+        <p class="section-intro reveal">The tools I reach for most often.</p>
+        <!-- EDIT: your tools -->
+        <dl class="cells cells-2 reveal">
+          <div class="cell"><dt class="micro">Languages</dt><dd>TypeScript, JavaScript, Python, SQL</dd></div>
+          <div class="cell"><dt class="micro">Frontend</dt><dd>React, Next.js, Tailwind, CSS</dd></div>
+          <div class="cell"><dt class="micro">Backend</dt><dd>Node.js, Postgres, REST, GraphQL</dd></div>
+          <div class="cell"><dt class="micro">Tools</dt><dd>Figma, Git, Docker, Vercel</dd></div>
+        </dl>
+      </section>
+
+      <!-- 05 — contact -->
+      <section id="contact" aria-labelledby="contact-label" data-reveal-group>
+        <p class="section-label pixel reveal">05 — contact</p>
+        <h2 class="contact-title reveal" id="contact-label">Let's make something good.</h2>
+        <p class="section-intro reveal">Have a project in mind, or just want to say hello? My inbox is open.</p>
+        <!-- EDIT: replace hello@example.com in both places below -->
+        <div class="actions reveal">
+          <a class="btn-primary" href="mailto:hello@example.com">Email me</a>
+          <button class="arrow-link" type="button" data-copy="hello@example.com">
+            <span data-copy-label>Copy email</span> <span class="arrow" aria-hidden="true">↗</span>
+          </button>
+          <span class="visually-hidden" aria-live="polite" data-copy-status></span>
+        </div>
+        <!-- EDIT: your profile URLs and handles -->
+        <ul class="link-list reveal">
+          <li><a href="https://github.com/" target="_blank" rel="noopener"><span class="micro">GitHub</span><span>@username <span class="ext">↗</span></span></a></li>
+          <li><a href="https://www.linkedin.com/" target="_blank" rel="noopener"><span class="micro">LinkedIn</span><span>in/username <span class="ext">↗</span></span></a></li>
+          <li><a href="#" target="_blank" rel="noopener"><span class="micro">Resume</span><span>resume.pdf <span class="ext">↗</span></span></a></li>
+        </ul>
+      </section>
+
+      <footer class="footer">
+        <span class="micro">© <span data-year>2026</span> JP Del Rosario</span>
+        <a class="micro footer-link" href="#top">Back to top ↑</a>
+      </footer>
+    </div>
+  </main>
+</body>
+</html>
