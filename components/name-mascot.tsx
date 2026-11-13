@@ -299,10 +299,10 @@ export function NameMascot({ name, className }: { name: string; className?: stri
     abort.current?.abort();
   }, []);
 
-  // greet by itself once per visit, a moment after the page appears. (Browsers only allow speech after the visitor has
+  // Optional (mascot.autoGreet, off by default): greet by itself once per visit. (Browsers only allow speech after the visitor has
   // clicked or tapped something, so this first greeting may be silent; everything after a click is spoken.)
   useEffect(() => {
-    if (!mascot.enabled) return;
+    if (!mascot.enabled || !mascot.autoGreet) return; // by default it only opens when clicked
     let seen = false;
     try {
       seen = sessionStorage.getItem(SEEN) === "1";

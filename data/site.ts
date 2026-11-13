@@ -233,6 +233,8 @@ export const ctas = {
 // Version (public domain, free to use on a website). Set enabled: false to hide it.
 export const mascot = {
   enabled: true,
+  /** Open and greet by itself once per visit. Off: the mascot only speaks when someone clicks it. */
+  autoGreet: false,
   greeting: "Hi there! 👋 Welcome to my portfolio.",
   question: "Are you doing okay today?",
   /** Shown when the visitor answers "I'm okay". */
