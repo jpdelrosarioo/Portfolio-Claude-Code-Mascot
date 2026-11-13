@@ -34,13 +34,15 @@ const staysPut = (el: HTMLElement) => {
   return false;
 };
 
-const isTall = (r: DOMRect) => r.height > innerHeight * 0.55;
+/** The sticky bar on phones and tablets covers the top of the page. */
+const topBar = () => (innerWidth < 1024 ? 56 : 0);
 
-/** What is lit up: the whole part, or just its top (heading) when it is taller than most of the screen. */
-const litBox = (r: DOMRect): Box => {
-  const h = isTall(r) ? Math.min(r.height, 150) : r.height;
-  return { left: r.left - PAD, top: r.top - PAD, width: r.width + PAD * 2, height: h + PAD * 2 };
-};
+/** Too tall to have room for the card above or below it on this screen. */
+const isTall = (r: DOMRect) => r.height > innerHeight - topBar() - 250;
+
+/** What is lit up: exactly the part, the same size as its container. (On a small screen a part can be taller than the
+ *  screen; its light then simply carries on past the edge of the screen, so it never ends in the wrong place.) */
+const litBox = (r: DOMRect): Box => ({ left: r.left - PAD, top: r.top - PAD, width: r.width + PAD * 2, height: r.height + PAD * 2 });
 
 /** Where the tip of the cursor points. */
 const aim = (r: DOMRect) => ({
@@ -134,10 +136,11 @@ export function CursorTour() {
       // bring it into view (the page scrolls, the cursor waits where it is)
       if (!staysPut(el)) {
         const r = el.getBoundingClientRect();
-        const header = innerWidth < 1024 ? 56 : 0; // the sticky bar on phones and tablets
+        const header = topBar();
+        // a part with room for the card below it sits a little above the middle; a big one starts at the top
         const want = isTall(r)
-          ? header + innerHeight * 0.1
-          : header + (innerHeight - header) * (innerWidth < 640 ? 0.3 : 0.38) - r.height / 2;
+          ? header + 16
+          : Math.max(header + 16, header + (innerHeight - header) * (innerWidth < 640 ? 0.3 : 0.38) - r.height / 2);
         const y = Math.min(document.documentElement.scrollHeight - innerHeight, Math.max(0, scrollY + r.top - want));
         if (Math.abs(y - scrollY) > 4) {
           scrollTo({ top: y, behavior: reduced() ? "auto" : "smooth" });
