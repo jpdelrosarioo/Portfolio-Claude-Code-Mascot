@@ -4,7 +4,7 @@
 // dust travelling across the picture). When the cursor leaves, the dust is pulled back and the portrait rebuilds.
 //
 // How it stays seamless: a bigger overlay canvas sits on top of the portrait. Its pixel buffer starts as an exact copy of
-// the real portrait (rounded corners included); as each dot lets go, its little tile is erased from the copy and the dot
+// the real portrait (rounded corners too, if it has any); as each dot lets go, its little tile is erased from the copy and the dot
 // is drawn flying around instead. So nothing changes the moment the cursor lands — only the dots that have left move.
 // ~50,000 dots are handled every frame, so everything is written straight into one pixel buffer.
 
