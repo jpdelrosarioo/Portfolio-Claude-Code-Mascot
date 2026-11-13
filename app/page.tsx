@@ -1,5 +1,5 @@
 import { AiLogos } from "@/components/ai-logos";
-import { Affiliations, Certifications, Recommendations } from "@/components/credentials";
+import { OrganizationsList, Certifications, Recommendations } from "@/components/credentials";
 import { CopyEmail } from "@/components/copy-email";
 import { EmailButton } from "@/components/email-button";
 import { NameMascot } from "@/components/name-mascot";
@@ -122,9 +122,9 @@ export default function Home() {
         <Recommendations />
       </Section>
 
-      {/* ───────── 06 — affiliations ───────── */}
-      <Section id="affiliations" label="06 — affiliations" cta={{ label: "All affiliations", href: ctas.affiliations }}>
-        <Affiliations />
+      {/* ───────── 06 — organizations ───────── */}
+      <Section id="organizations" label="06 — organizations" cta={{ label: "All organizations", href: ctas.organizations }}>
+        <OrganizationsList />
       </Section>
 
       {/* ───────── 07 — github ───────── */}

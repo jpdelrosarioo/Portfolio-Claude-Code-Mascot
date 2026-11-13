@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { affiliations, certifications, recommendations } from "@/data/site";
+import { Organizations, certifications, recommendations } from "@/data/site";
 import { Reveal } from "./reveal";
 
 const initials = (name: string) =>
@@ -80,14 +80,27 @@ export function Recommendations() {
 }
 
 /** A simple row of logo-slot + name + role. */
-export function Affiliations() {
+export function OrganizationsList() {
   return (
     <Reveal as="ul" className="flex flex-wrap gap-x-8 gap-y-5">
-      {affiliations.map((a) => (
+      {Organizations.map((a) => (
         <li key={a.name} className="flex items-center gap-3">
-          <span aria-hidden className="grid size-9 place-items-center rounded-lg border border-g200 bg-g50 font-pixel text-sm leading-none">
-            {a.mark}
-          </span>
+          {a.mark.startsWith("/") ? (
+            // a path such as "/projects/JPSSITE.jpg" (a file in /public) shows that image
+            <Image
+              src={a.mark}
+              alt=""
+              width={72}
+              height={72}
+              unoptimized={a.mark.endsWith(".svg")} // Next doesn't resize SVGs; they scale on their own
+              className="size-9 shrink-0 rounded-lg border border-g200 bg-white object-contain p-0.5"
+            />
+          ) : (
+            // anything else, like "S", is shown as a letter
+            <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-lg border border-g200 bg-g50 font-pixel text-sm leading-none">
+              {a.mark}
+            </span>
+          )}
           <span>
             <span className="block text-[13px] font-semibold leading-tight">{a.name}</span>
             <span className="micro mt-0.5 block text-g500">{a.role}</span>

@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/sidebar";
 import { CleanAnchors } from "@/components/clean-anchors";
 import { SoundEffects } from "@/components/sound-effects";
 import { ThemeProvider } from "@/components/theme-provider";
+import { CursorTour } from "@/components/cursor-tour";
 import { TypingTest } from "@/components/typing-test";
 import { site } from "@/data/site";
 import "./globals.css";
@@ -47,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <style>{`.reveal{opacity:1!important;transform:none!important}`}</style>
         </noscript>
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <a
           href="#main"
           className="fixed left-4 top-[-3rem] z-[100] rounded-md bg-ink px-3 py-2 font-mono text-xs font-medium text-bg focus:top-4"
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Sidebar />
           <CommandMenu />
           <TypingTest />
+          <CursorTour />
           <SoundEffects />
           <CleanAnchors />
           <main

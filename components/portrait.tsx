@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { preload } from "react-dom";
 import { HalftonePortrait, type Focus, type Frame } from "./halftone-portrait";
 
 export type PortraitStyle = "dots-bw" | "dots" | "halftone-color" | "halftone" | "color";
@@ -33,6 +34,11 @@ export function Portrait({
   /** Which part of the photo to show: centre x/y (0–1) and zoom (1 = whole photo). Halftone styles only. */
   focus?: Focus;
 }) {
+  // start fetching the photo(s) right away, so the portrait is there when the page opens (not after the scripts)
+  for (const url of new Set([...(frames?.map((f) => f.src) ?? []), ...(!frames?.length ? [src, srcDark] : [])])) {
+    if (url && (style === "dots-bw" || style === "dots")) preload(encodeURI(url), { as: "image" });
+  }
+
   if ((src || frames?.length) && style === "dots-bw") {
     return (
       <HalftonePortrait src={src} srcDark={srcDark} frames={frames} fps={fps} alt={alt} dots gray focus={focus} className="block aspect-square w-full rounded-2xl" />

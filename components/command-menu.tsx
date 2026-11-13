@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ask, navItems, site } from "@/data/site";
+import { ask, navItems, site, tour } from "@/data/site";
 import { AskChat } from "./ask-chat";
 import { Icon } from "./icons";
 import { Modal } from "./modal";
@@ -51,6 +51,7 @@ export function CommandMenu() {
       ...navItems.map((n) => ({ id: `go-${n.id}`, label: n.label, hint: "Go to", run: go(n.id) })),
       { id: "email", label: `Email ${site.email}`, hint: "Action", run: () => (location.href = `mailto:${site.email}`) },
       { id: "typing", label: "Typing test", hint: "Game", run: () => window.dispatchEvent(new Event("open-typing")) },
+      ...(tour.enabled ? [{ id: "tour", label: "Take a tour", hint: "Guide", run: () => window.dispatchEvent(new Event("start-tour")) }] : []),
       { id: "t-light", label: "Light", hint: "Theme", run: () => setTheme("light") },
       { id: "t-dark", label: "Dark", hint: "Theme", run: () => setTheme("dark") },
       { id: "t-system", label: "System", hint: "Theme", run: () => setTheme("system") },

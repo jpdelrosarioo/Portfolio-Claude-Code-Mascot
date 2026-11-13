@@ -119,31 +119,68 @@ export function isSpeaking(): boolean {
   return pending > 0;
 }
 
+/** What the voice is doing, so the words on screen can follow it. `fraction` (0–1) is how far through the text given to
+ *  `speak` the voice is. "start": the first sound is playing. "word": a word was just spoken (only some voices report
+ *  this). "chunk": a later part of a long text began or ended. "end": all of it was spoken. "error": it could not be
+ *  spoken (for example the browser blocks speech before the visitor has clicked something). */
+export type SpeechEvent = { type: "start" | "word" | "chunk" | "end" | "error"; fraction: number };
+
 /** Adds text to the end of what is being said. Safe to call repeatedly while an answer streams in.
- *  `pitch` / `rate` change the character of the voice (the mascot speaks a little higher). */
-export function speak(text: string, { pitch = 1, rate = 1.02 }: { pitch?: number; rate?: number } = {}) {
-  if (!speechSupported()) return;
+ *  `pitch` / `rate` change the character of the voice (the mascot speaks a little higher).
+ *  `onSpeech` reports the voice's progress. */
+export function speak(
+  text: string,
+  { pitch = 1, rate = 1.02, onSpeech }: { pitch?: number; rate?: number; onSpeech?: (e: SpeechEvent) => void } = {},
+) {
+  if (!speechSupported()) {
+    onSpeech?.({ type: "error", fraction: 0 });
+    return;
+  }
   const clean = cleanForSpeech(text);
-  if (!clean) return;
+  if (!clean) return; // nothing to hear (only an emoji, say)
   const synth = window.speechSynthesis;
   const gen = generation;
-  for (const part of chunks(clean)) {
+  const parts = chunks(clean);
+  const total = Math.max(1, parts.reduce((n, p) => n + p.length + 1, -1));
+  let before = 0;
+  parts.forEach((part, i) => {
+    const from = before;
+    before += part.length + 1;
+    const lastPart = i === parts.length - 1;
     const u = new SpeechSynthesisUtterance(part);
     const voice = pickVoice();
     if (voice) u.voice = voice;
     u.lang = voice?.lang ?? "en-US";
     u.rate = rate;
     u.pitch = pitch;
+    const live = () => gen === generation; // false once speech was stopped
     const done = () => {
-      if (gen !== generation) return;
+      if (!live()) return;
       pending = Math.max(0, pending - 1);
       emit();
     };
-    u.onend = done;
-    u.onerror = done;
+    u.onstart = () => {
+      if (live()) onSpeech?.({ type: i === 0 ? "start" : "chunk", fraction: from / total });
+    };
+    u.onboundary = (e) => {
+      if (!live() || (e.name && e.name !== "word")) return;
+      let stop = part.indexOf(" ", e.charIndex); // the end of the word being spoken
+      if (stop < 0) stop = part.length;
+      onSpeech?.({ type: "word", fraction: Math.min(1, (from + stop) / total) });
+    };
+    u.onend = () => {
+      const was = live();
+      done();
+      if (was) onSpeech?.({ type: lastPart ? "end" : "chunk", fraction: Math.min(1, (from + part.length) / total) });
+    };
+    u.onerror = (e) => {
+      const was = live();
+      done();
+      if (was && e.error !== "canceled" && e.error !== "interrupted") onSpeech?.({ type: "error", fraction: from / total });
+    };
     pending++;
     synth.speak(u);
-  }
+  });
   emit();
 }
 

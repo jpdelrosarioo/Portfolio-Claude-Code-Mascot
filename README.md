@@ -25,7 +25,7 @@ Everything you see is placeholder. All of it lives in **`data/site.ts`** — loo
 | **GitHub dot grid** | Set `githubUser: "your-username"`. It then shows your real contributions (refreshed daily). Empty = sample data. |
 | The wide card under the intro | `latestBuild` (same fields as a project) |
 | **Project pictures** | Put files in `public/projects/`, then on a project set `image: "/projects/logo.png"` (small square logo / app icon, replaces the letters in the icon tile) and/or `cover: "/projects/screenshot.png"` (wide screenshot across the top of the card, cropped to 16:9 from the top). Works on `projects` and on `latestBuild`. |
-| Blog rows, projects, experience, stack, certifications, recommendations, affiliations | the arrays of the same names |
+| Blog rows, projects, experience, stack, certifications, recommendations, organizations | the arrays of the same names |
 | "All posts →" style links | `ctas` |
 
 Design values (colors, fonts, shadows, halftone) are in `app/globals.css`. Fonts are wired in `app/layout.tsx`

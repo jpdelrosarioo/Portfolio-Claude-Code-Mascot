@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ask, navItems, site } from "@/data/site";
+import { ask, navItems, site, tour } from "@/data/site";
 import { Icon } from "./icons";
 import { SoundToggle } from "./sound-toggle";
 import { ThemeCycle, ThemeSwitch } from "./theme-switch";
@@ -143,6 +143,11 @@ export function MobileNav() {
             <button type="button" onClick={() => openAndClose("open-typing")} className="micro flex items-center gap-2 py-1 text-left text-g500 transition-colors duration-200 hover:text-ink">
               <Icon name="keyboard" className="size-3.5" /> Typing test
             </button>
+            {tour.enabled && (
+              <button type="button" onClick={() => openAndClose("start-tour")} className="micro flex items-center gap-2 py-1 text-left text-g500 transition-colors duration-200 hover:text-ink">
+                <Icon name="cursor" className="size-3.5" /> Take a tour
+              </button>
+            )}
             <div className="flex items-center gap-2">
               <ThemeSwitch />
               <SoundToggle />

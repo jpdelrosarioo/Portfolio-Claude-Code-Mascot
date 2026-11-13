@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ask, nav, navItems, site } from "@/data/site";
+import { ask, nav, navItems, site, tour } from "@/data/site";
 import { useActiveSection } from "@/lib/use-active-section";
 import { Icon } from "./icons";
 import { SoundToggle } from "./sound-toggle";
@@ -29,10 +29,11 @@ function Kbd({ children }: { children: string }) {
 }
 
 /** "Ask anything  Alt + K": label, then the keys right after it (not pushed to the far edge). */
-function Shortcut({ label, keys, onClick }: { label: string; keys: [string, string]; onClick: () => void }) {
+function Shortcut({ label, keys, onClick, tour: tourId }: { label: string; keys: [string, string]; onClick: () => void; tour?: string }) {
   return (
     <button
       type="button"
+      data-tour={tourId}
       onClick={onClick}
       className="flex w-fit items-center gap-2 text-[12px] leading-[18px] text-g500 transition-colors duration-200 hover:text-ink"
     >
@@ -130,8 +131,9 @@ export function Sidebar() {
       {/* Expanded footer: shortcuts → status band → bottom block, 24px under the groups at the least */}
       <div className="mt-auto pt-6 collapsed:hidden">
         <div className="grid justify-items-start gap-2.5">
-          {ask.enabled && <Shortcut label="Ask anything" keys={["Alt", "K"]} onClick={() => fire("open-ask")} />}
+          {ask.enabled && <Shortcut label="Ask anything" keys={["Alt", "K"]} tour="ask" onClick={() => fire("open-ask")} />}
           <Shortcut label="Typing test" keys={["Alt", "J"]} onClick={() => fire("open-typing")} />
+          {tour.enabled && <Shortcut label="Take a tour" keys={["Alt", "T"]} onClick={() => fire("start-tour")} />}
         </div>
 
         {site.available && (
@@ -141,7 +143,7 @@ export function Sidebar() {
         )}
 
         <div className="mt-6">
-          <div className="mb-4 flex items-center gap-2">
+          <div data-tour="theme" className="mb-4 flex w-fit items-center gap-2">
             <ThemeSwitch compact />
             <SoundToggle className="size-[30px]" />
           </div>
@@ -171,6 +173,11 @@ export function Sidebar() {
         <button type="button" onClick={() => fire("open-typing")} aria-label="Typing test" title="Typing test (Alt+J)" className={railBtn}>
           <Icon name="keyboard" className="size-4" />
         </button>
+        {tour.enabled && (
+          <button type="button" onClick={() => fire("start-tour")} aria-label="Take a tour" title="Take a tour (Alt+T)" className={railBtn}>
+            <Icon name="cursor" className="size-4" />
+          </button>
+        )}
         <ThemeCycle />
         <SoundToggle className="size-9 rounded-lg border-0 bg-transparent hover:bg-g100" />
         <a href={`mailto:${site.email}`} aria-label={`Email ${site.email}`} title={site.email} className={railBtn}>

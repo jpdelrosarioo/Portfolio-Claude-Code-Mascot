@@ -188,6 +188,15 @@
 .mascot-wave { animation: mascot-wave 0.9s ease-in-out 3; transform-box: fill-box; transform-origin: left center; }
 .bubble-in { animation: bubble-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 @keyframes mascot-talk { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1.6); } }
+/* ---------- Cursor tour ---------- */
+@keyframes tour-ripple { from { transform: scale(0.3); opacity: 0.7; } to { transform: scale(2.6); opacity: 0; } }
+@keyframes tour-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes tour-card-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes tour-cursor-in { from { opacity: 0; scale: 0.6; } to { opacity: 1; scale: 1; } }
+.tour-ripple { animation: tour-ripple 700ms ease-out both; }
+.tour-bar { transform-origin: left; animation: tour-bar var(--tour-ms, 5000ms) linear both; }
+.tour-card-in { animation: tour-card-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.tour-cursor-in { animation: tour-cursor-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .mascot-mouth { animation: mascot-talk 0.26s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 
 /* ---------- Entrance: fade up 12px over 700ms, staggered (--d set by <Reveal>) ---------- */
