@@ -58,7 +58,7 @@ export const site = {
     stepX: 913.5,
     stepY: 769,
     inset: { top: 0.11, right: 0.08, bottom: 0.05, left: 0.05 },
-    fps: 60,
+    fps: 50,
     focus: { x: 0.5, y: 0.45, zoom: 1.05 },
   } as PortraitFrames | undefined,
   /** Your GitHub username. Leave empty to show sample data in the contribution grid. */
@@ -86,7 +86,7 @@ export const site = {
   /** Shown as icons. A label of github, linkedin, instagram or x (twitter) gets its logo; any other label stays as text. */
   socials: [
     { label: "github", href: "https://github.com/jpdelrosarioo" },
-    { label: "linkedin", href: "https://www.linkedin.com/jpdelrosarioo" },
+    { label: "linkedin", href: "https://www.linkedin.com/in/jpdelrosarioo" },
     { label: "instagram", href: "https://www.instagram.com/jp.delrosarioo" },
     { label: "x", href: "https://x.com/benihotdog" },
   ], // EDIT
@@ -107,7 +107,7 @@ export const nav = {
     { id: "stack", label: "Stack" },
     { id: "certifications", label: "Certifications" },
     { id: "recommendations", label: "Recommendations" },
-    { id: "affiliations", label: "Affiliations" },
+    { id: "organizations", label: "Organizations" },
     { id: "github", label: "GitHub" },
   ] as { id: string; label: string }[],
 };
@@ -165,7 +165,7 @@ export const projects: Project[] = [
     mark: "P2",
     image: "/projects/Students Information Logo.png",
     badges: ["#2", "BSIT SYSTEM"],
-    links: [{ label: "Visit", href: "https://students-bsit-system.vercel.app" }, {label: "Source,", href: "https://github.com/jpdelrosarioo/CRUD-TESTING"}],
+    links: [{ label: "Visit", href: "https://students-bsit-system.vercel.app" }, {label: "Source", href: "https://github.com/jpdelrosarioo/CRUD-TESTING"}],
   },
   {
     title: "Syllabus Management System",
@@ -179,7 +179,9 @@ export const projects: Project[] = [
 
 /* ---------- 03 — experience ---------- */
 export const experience = [
-  { year: "n/a", role: "Role title", company: "Company name" },
+  { year: "2026", role: "Student", company: "LCUP" },
+  { year: "2025", role: "Community Helper", company: "Yield Guild Games"},
+  { year: "2025", role: "Junior Moderator", company: "Public AI" },
 ]; // EDIT
 
 /** Your technologies, grouped. Add or remove items freely; a group with no items is hidden. */
@@ -195,7 +197,7 @@ export const stack: { group: string; items: string[] }[] = [
 export const certifications = [
   { title: "Microsoft Access Expert", issuer: "MICROSOFT", mark: "/projects/microsoft.svg", href: "https://www.credly.com/badges/4c859430-e6de-48b8-a1db-a12f6afbf74f/public_url" },
   { title: "Excel Associate", issuer: "MICROSOFT", mark: "/projects/microsoft.svg", href: "https://www.credly.com/badges/7a8f0a99-7bb9-481e-8e02-d1edc896bc3e/public_url" },
-  { title: "A third certification", issuer: "Issuer", mark: "N", href: "#" },
+  { title: "Foundational C# with Microsoft", issuer: "MICROSOFT", mark: "/projects/microsoft.svg", href: "https://www.freecodecamp.org/certification/jprizaldelrosario/foundational-c-sharp-with-microsoft" },
 ]; // EDIT
 
 /* ---------- 05 — recommendations ---------- */
@@ -206,10 +208,10 @@ export const recommendations = [
 ]; // EDIT
 
 /* ---------- 06 — Organizations ---------- */
-export const affiliations = [
-  { name: "JPSSITE", role: "Member", mark: "A" },
-  { name: "APP BUILDERS PH", role: "Member", mark: "S" },
-  { name: "DATING BAYARAN", role: "MEMBER", mark: "C" },
+export const Organizations = [
+  { name: "JPSSITE", role: "Member", mark: "/projects/JPSSITE.jpg" },
+  { name: "APP BUILDERS PH", role: "Member", mark: "/projects/App Builders PH.jpg" },
+  { name: "DATING BAYARAN", role: "MEMBER", mark: "/projects/Dating Bayaran.jpg" },
 ]; // EDIT
 
 /* ---------- Section links ("All posts →") ---------- */
@@ -220,7 +222,7 @@ export const ctas = {
   experience: "experience",
   certifications: "certifications",
   recommendations: "recommendations",
-  affiliations: "affiliations",
+  organizations: "organizations",
 };
 
 /* ---------- "Ask anything" (AI chat) ---------- */
@@ -258,4 +260,38 @@ export const ask = {
    *  (see lib/moderation.ts). Example: ["some word", "another phrase"]. */
   blockedWords: [] as string[], // EDIT
   suggestions: ["What are you building right now?", "What's your tech stack?", "How can I work with you?"], // EDIT
+};
+
+/* ---------- The cursor tour: an animated cursor that glides over the page and explains each part ---------- */
+export type TourStop = {
+  /** CSS selector of what the cursor points at (a stop whose element isn't on screen, like a hidden sidebar, is skipped). */
+  target: string;
+  title: string;
+  text: string;
+  /** "dust": the cursor also touches the portrait, so it turns to dust and comes back. */
+  action?: "dust";
+};
+export const tour = {
+  enabled: true,
+  /** Start the tour by itself the first time someone opens the site (it is remembered in their browser, so only once). */
+  autoStart: true,
+  /** How long after the page opens it starts (ms). */
+  autoStartDelay: 2500,
+  /** The name tag that follows the cursor. */
+  cursorLabel: "JP", // EDIT
+  stops: [
+    { target: "header#top h1", title: "Hi, I'm JP 👋", text: "Welcome! I'm a student and aspiring AI software engineer. Let me show you around: it takes about a minute." },
+    { target: 'button[aria-label^="Say hi"], button[aria-label^="Close the mascot"]', title: "Meet the mascot", text: "This little guy sits on my name. Click it and it says hi, asks how you are, and shares a Bible verse about God's faithfulness. You can even ask it for any verse." },
+    { target: 'header#top canvas[role="img"]', title: "Try touching my photo", text: "Move your cursor over the portrait and it turns to dust, then comes back together. Switch the theme and the glasses come off (or on).", action: "dust" },
+    { target: "header#top p", title: "What I'm up to", text: "What I'm focused on right now, and the AI tools I like to build with." },
+    { target: "#blog", title: "Blog", text: "Notes and write-ups about what I'm learning and building." },
+    { target: "#projects", title: "Projects", text: "Things I've made. Click a card to see what it is and how it's built." },
+    { target: "#experience", title: "Experience & stack", text: "Where I've worked and the tools I use, grouped by frontend, backend, databases, AI and tools." },
+    { target: "#certifications", title: "Certifications", text: "Credentials I've earned. Each card links to its public verification page." },
+    { target: "#organizations", title: "Organizations", text: "The communities and groups I'm part of." },
+    { target: "#github", title: "GitHub activity", text: "My contribution graph, synced live from GitHub." },
+    { target: '[data-tour="ask"]', title: "Ask anything", text: "Press Alt + K to ask an AI assistant about me, my work or my stack. It can read its answers out loud." },
+    { target: '[data-tour="theme"]', title: "Light, dark or system", text: "Pick the look you like. The portrait changes with it." },
+    { target: "#contact", title: "Let's talk", text: "That's the tour! If you'd like to work together, email me from here, or press Alt + T any time to take the tour again." },
+  ] as TourStop[], // EDIT
 };

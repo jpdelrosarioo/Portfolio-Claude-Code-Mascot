@@ -1,5 +1,5 @@
 import {
-  affiliations,
+  Organizations,
   certifications,
   experience,
   latestBuild,
@@ -55,8 +55,8 @@ export function buildKnowledge() {
     "Certifications:",
     ...certifications.map((c) => `- ${c.title} (${c.issuer})`),
     "",
-    "Affiliations:",
-    ...affiliations.map((a) => `- ${a.name} (${a.role})`),
+    "Organizations:",
+    ...Organizations.map((a) => `- ${a.name} (${a.role})`),
     "",
     "What other people say:",
     ...recommendations.map((r) => `- ${r.name}, ${r.role}: "${r.quote}"`),

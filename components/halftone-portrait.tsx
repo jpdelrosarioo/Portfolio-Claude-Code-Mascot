@@ -500,6 +500,10 @@ export function HalftonePortrait({
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
+    if (dots) {
+      canvas.style.transition = "opacity 0.5s ease";
+      if (!canvas.dataset.shown) canvas.style.opacity = "0";
+    }
 
     const f: Focus | undefined = fx === undefined || fy === undefined || fz === undefined ? undefined : { x: fx, y: fy, zoom: fz };
     const sheet: Frame[] | null = dots && framesKey && JSON.parse(framesKey).length > 2 ? JSON.parse(framesKey) : null;
@@ -560,7 +564,7 @@ export function HalftonePortrait({
         const v = document.createElement("canvas");
         v.width = VIEW;
         v.height = VIEW;
-        const x = v.getContext("2d")!;
+        const x = v.getContext("2d", { willReadFrequently: true })!;
         x.imageSmoothingEnabled = true;
         x.imageSmoothingQuality = "high";
         const region = l.crop ?? { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
@@ -664,6 +668,10 @@ export function HalftonePortrait({
           const overlay = overlayRef.current;
           if (field && overlay) dust = createDust(canvas, overlay, field);
           if (sheet && !ready) rebuildSoon();
+          canvas.dataset.shown = "1";
+          canvas.style.opacity = "1"; // the real portrait is on screen: fade it in
+        } else if (dots) {
+          // The photo has not loaded yet: show nothing (not the placeholder silhouette) until the real portrait is ready.
         } else {
           draw(canvas, cur?.img ?? null, colored, f);
         }
