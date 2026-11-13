@@ -191,6 +191,7 @@ export const stack: { group: string; items: string[] }[] = [
   { group: "Databases", items: ["MySQL"] },
   { group: "AI", items: ["Gemini", "Claude Code", "ChatGPT", "Codex", "Claude", "Antigravity", "Anthropic", "OpenAI"] },
   { group: "Tools", items: ["Git", "GitHub"] },
+  { group: "IDE & Editors", items: ["VS Code", "PyCharm"] },
 ]; // EDIT
 
 /* ---------- 04 — certifications ---------- */

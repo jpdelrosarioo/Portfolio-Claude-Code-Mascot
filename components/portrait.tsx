@@ -7,10 +7,10 @@ export type PortraitStyle = "dots-bw" | "dots" | "halftone-color" | "halftone" |
 /**
  * The hero portrait.
  *  - "dots-bw":        the same dense dots in black and white, no border. With `srcDark`, that photo shows in dark mode.
- *  - "dots":           your photo rebuilt from tens of thousands of tiny dots in its own colours, in a rounded frame.
+ *  - "dots":           your photo rebuilt from tens of thousands of tiny dots in its own colours, in a square frame.
  *  - "halftone-color": the dotted halftone texture, with every dot keeping the colour of your photo.
  *  - "halftone":       the same texture in black and white.
- *  - "color":          your photo as-is, in a rounded frame that matches the cards.
+ *  - "color":          your photo as-is, in a square frame.
  * With no `src` it always falls back to the halftone placeholder silhouette.
  */
 export function Portrait({
@@ -41,7 +41,7 @@ export function Portrait({
 
   if ((src || frames?.length) && style === "dots-bw") {
     return (
-      <HalftonePortrait src={src} srcDark={srcDark} frames={frames} fps={fps} alt={alt} dots gray focus={focus} className="block aspect-square w-full rounded-2xl" />
+      <HalftonePortrait src={src} srcDark={srcDark} frames={frames} fps={fps} alt={alt} dots gray focus={focus} className="block aspect-square w-full" />
     );
   }
 
@@ -55,7 +55,7 @@ export function Portrait({
         alt={alt}
         dots
         focus={focus}
-        className="block aspect-square w-full rounded-2xl border border-g200 shadow-card"
+        className="block aspect-square w-full border border-g200 shadow-card"
       />
     );
   }
@@ -73,7 +73,7 @@ export function Portrait({
   }
 
   return (
-    <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-g200 bg-g100 shadow-card">
+    <div className="relative aspect-square w-full overflow-hidden border border-g200 bg-g100 shadow-card">
       <Image src={src} alt={alt} fill priority sizes="288px" className="object-cover" />
     </div>
   );

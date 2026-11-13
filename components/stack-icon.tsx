@@ -14,6 +14,10 @@ const ALIASES: Record<string, string> = {
   python: "python",
   git: "git",
   github: "github",
+  vscode: "visualstudiocode",
+  visualstudiocode: "visualstudiocode",
+  visualstudio: "visualstudiocode",
+  pycharm: "pycharm",
 };
 // Technologies drawn with a plain symbol, because their official logo is a wordmark that is unreadable at icon size
 const SYMBOLS: Record<string, "database"> = { mysql: "database", postgresql: "database", postgres: "database", mongodb: "database", sqlite: "database" };
