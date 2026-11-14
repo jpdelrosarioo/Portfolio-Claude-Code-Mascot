@@ -40,17 +40,17 @@ Design values (colors, fonts, shadows, halftone) are in `app/globals.css`. Fonts
 ## "Ask anything" (AI)
 
 Visitors can ask questions about you. The answers come only from the facts in `data/site.ts` (projects, experience, stack…), so keep that file filled in.
-It calls the Gemini API from a small server route (`app/api/ask/route.ts`), so your key is never sent to the browser. Visitors' questions are sent to Google.
+It calls the Groq API from a small server route (`app/api/ask/route.ts`), so your key is never sent to the browser. Visitors' questions are sent to Groq.
 
-1. Get an API key at <https://aistudio.google.com/apikey> and create a file `.env.local` in this folder (it is git-ignored):
+1. Get an API key at <https://console.groq.com/keys> and create a file `.env.local` in this folder (it is git-ignored):
    ```
-   GEMINI_API_KEY=your-key-here
+   GROQ_API_KEY=your-key-here
    ```
    On Vercel: Project → Settings → Environment Variables. Without a key the chat politely says it isn't set up yet. Restart `npm run dev` after creating the file.
-2. Optional settings (same place): `ASK_MODEL` (default `gemini-3.5-flash-lite`; try `gemini-3.6-flash` for smarter answers — if you get an error, check the current model names at <https://aistudio.google.com/docs/models>), `ASK_HOURLY_LIMIT` (questions per visitor per hour, default 15), `ASK_DAILY_LIMIT` (questions in total per day, default 300).
+2. Optional settings (same place): `ASK_MODEL` (default `llama-3.3-70b-versatile`; try `llama-3.1-8b-instant` for faster, cheaper answers — if you get an error, check the current model names at <https://console.groq.com/docs/models>), `ASK_HOURLY_LIMIT` (questions per visitor per hour, default 15), `ASK_DAILY_LIMIT` (questions in total per day, default 300).
 3. Hide it completely with `ask.enabled: false` in `data/site.ts`.
 
-**Cost:** depends on your Google plan — check the current free-tier limits and prices at <https://ai.google.dev/pricing>. On a free key, Google may use the prompts to improve its products, so don't put anything private in `data/site.ts`. The limits above cap how many calls the site makes.
+**Cost:** depends on your Groq plan — check the current free-tier limits and prices at <https://groq.com/pricing>. Don't put anything private in `data/site.ts`, since its contents are sent to the model with every question. The limits above cap how many calls the site makes.
 The limits are kept in memory per server instance, so treat them as a safety net, not a hard guarantee.
 
 Needs a server: it does not work with `output: "export"` (fully static hosting).

@@ -228,7 +228,7 @@ export const ctas = {
 
 /* ---------- "Ask anything" (AI chat) ---------- */
 // The answers come from the facts in this file (see lib/ask-context.ts), so keep the sections above up to date.
-// Needs GEMINI_API_KEY on your host — see README. Set enabled: false to hide it.
+// Needs GROQ_API_KEY on your host — see README. Set enabled: false to hide it.
 /* ---------- The little mascot sitting on your name ---------- */
 // It greets visitors, asks how they are, and shares a verse about God's faithfulness. Verses are from the King James
 // Version (public domain, free to use on a website). Set enabled: false to hide it.

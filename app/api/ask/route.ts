@@ -6,13 +6,13 @@ import { moderate } from "@/lib/moderation";
 export const dynamic = "force-dynamic";
 
 /* ---------- Settings (all optional environment variables) ---------- */
-const MODEL = process.env.ASK_MODEL || "gemini-3.5-flash-lite"; // any Gemini model code, e.g. gemini-3.6-flash for smarter answers
-const GEMINI_URL = (process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com").replace(/\/$/, "");
+const MODEL = process.env.ASK_MODEL || "openai/gpt-oss-120b"; // any Groq model id, e.g. llama-3.1-8b-instant for faster, cheaper answers
+const GROQ_URL = (process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/$/, "");
 const HOURLY_LIMIT = Number(process.env.ASK_HOURLY_LIMIT ?? 15); // questions per visitor (IP) per hour
 const DAILY_LIMIT = Number(process.env.ASK_DAILY_LIMIT ?? 300); // questions in total per day
 const MAX_QUESTION_CHARS = 500;
 const MAX_HISTORY = 8; // messages kept from the conversation
-const MAX_ANSWER_TOKENS = 800; // a little headroom in case the model spends some on "thinking"
+const MAX_ANSWER_TOKENS = 800; // plenty for answers capped at ~120 words
 
 /* ---------- Guards: simple in-memory limits (per server instance) ---------- */
 const hits = new Map<string, number[]>();
@@ -109,15 +109,14 @@ function parseMessages(body: unknown): Msg[] | null {
   return msgs;
 }
 
-/** The text inside one streamed Gemini chunk (ignoring the model's private "thought" parts), plus why it stopped, if it did. */
-type GeminiChunk = {
-  candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
-  promptFeedback?: { blockReason?: string };
+/** One streamed Groq chunk (OpenAI format): the next bit of text, plus why it stopped, if it did. */
+type GroqChunk = {
+  choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[];
 };
 
 export async function POST(req: Request) {
   if (!ask.enabled) return reply(404, "disabled");
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return reply(503, "not_configured");
 
   // Only answer requests that come from this site
@@ -159,22 +158,24 @@ export async function POST(req: Request) {
   const upstream = new AbortController();
   let res: Response;
   try {
-    res = await fetch(`${GEMINI_URL}/v1beta/models/${encodeURIComponent(MODEL)}:streamGenerateContent?alt=sse`, {
+    res = await fetch(`${GROQ_URL}/chat/completions`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": apiKey }, // the key travels in a header, never in a URL
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, // the key travels in a header, never in a URL
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: mode === "mascot" ? MASCOT_SYSTEM : SYSTEM }] },
-        contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-        generationConfig: { maxOutputTokens: MAX_ANSWER_TOKENS, temperature: mode === "mascot" ? 0.7 : 0.4 },
+        model: MODEL,
+        stream: true,
+        messages: [{ role: "system", content: mode === "mascot" ? MASCOT_SYSTEM : SYSTEM }, ...messages],
+        max_tokens: MAX_ANSWER_TOKENS,
+        temperature: mode === "mascot" ? 0.7 : 0.4,
       }),
       signal: upstream.signal,
     });
   } catch (err) {
-    console.error("ask: could not reach Gemini", err);
+    console.error("ask: could not reach Groq", err);
     return reply(502, "upstream");
   }
   if (!res.ok || !res.body) {
-    console.error("ask: Gemini returned", res.status, (await res.text().catch(() => "")).slice(0, 300));
+    console.error("ask: Groq returned", res.status, (await res.text().catch(() => "")).slice(0, 300));
     return reply(res.status === 429 ? 429 : 502, res.status === 429 ? "rate_limited" : "upstream");
   }
   const source = res.body;
@@ -186,24 +187,24 @@ export async function POST(req: Request) {
     async start(controller) {
       let sentText = false;
       let blocked = false;
-      // each event looks like:  data: {"candidates":[{"content":{"parts":[{"text":"…"}]}}]}
+      // each event looks like:  data: {"choices":[{"delta":{"content":"…"}}]}   and the stream ends with  data: [DONE]
       const handle = (event: string) => {
         for (const line of event.split(/\r?\n/)) {
           if (!line.startsWith("data:")) continue;
-          let chunk: GeminiChunk;
+          const data = line.slice(5).trim();
+          if (!data || data === "[DONE]") continue;
+          let chunk: GroqChunk;
           try {
-            chunk = JSON.parse(line.slice(5));
+            chunk = JSON.parse(data);
           } catch {
             continue;
           }
-          if (chunk.promptFeedback?.blockReason) blocked = true;
-          const cand = chunk.candidates?.[0];
-          if (cand?.finishReason === "SAFETY" || cand?.finishReason === "PROHIBITED_CONTENT") blocked = true;
-          for (const part of cand?.content?.parts ?? []) {
-            if (part.text && !part.thought) {
-              sentText = true;
-              controller.enqueue(encoder.encode(part.text));
-            }
+          const choice = chunk.choices?.[0];
+          if (choice?.finish_reason === "content_filter") blocked = true;
+          const text = choice?.delta?.content;
+          if (text) {
+            sentText = true;
+            controller.enqueue(encoder.encode(text));
           }
         }
       };
