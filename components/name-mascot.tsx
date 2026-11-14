@@ -5,6 +5,7 @@ import { mascot, site, tour } from "@/data/site";
 import { findReference, lookUp, markedReferences, withoutMarkers, type VerseLookup } from "@/lib/bible";
 import { useDictation } from "@/lib/dictation";
 import { useWakeWord } from "@/lib/use-wake-word";
+import { isTouchDevice } from "@/lib/recognition";
 import { play } from "@/lib/sounds";
 import { moderate, moderationMessage } from "@/lib/moderation";
 import { tourSeen, tourWillAutoStart } from "@/lib/tour-state";
@@ -436,14 +437,26 @@ export function NameMascot({ name, className }: { name: string; className?: stri
     const turnOn = () => {
       if (!gone) setHandsFree(true);
     };
-    if (!navigator.permissions) {
-      turnOn();
-      return;
+    const check = () => {
+      if (!navigator.permissions) {
+        turnOn();
+        return;
+      }
+      navigator.permissions
+        .query({ name: "microphone" as PermissionName })
+        .then((s) => s.state !== "denied" && turnOn())
+        .catch(turnOn); // (this browser can't tell in advance: just try)
+    };
+    // A phone only lets a page start the microphone after a tap (and asks for it then), so there it starts at the first tap
+    if (isTouchDevice()) {
+      const first = () => check();
+      window.addEventListener("pointerup", first, { once: true, capture: true });
+      return () => {
+        gone = true;
+        window.removeEventListener("pointerup", first, true);
+      };
     }
-    navigator.permissions
-      .query({ name: "microphone" as PermissionName })
-      .then((s) => s.state !== "denied" && turnOn())
-      .catch(turnOn); // (this browser can't tell in advance: just try)
+    check();
     return () => {
       gone = true;
     };
@@ -1229,6 +1242,11 @@ export function NameMascot({ name, className }: { name: string; className?: stri
                   moodPet(s, Date.now()); // being clicked cheers it up
                   syncMood();
                   showEmote("heart");
+                }
+                // (tapping the mascot also tries the microphone again if it was off: a tap is what phones need to allow it)
+                if (WAKE.enabled && !handsFree) {
+                  setWakeProblem(null);
+                  setHandsFree(true);
                 }
                 if (step !== "hidden") return close();
                 // In the middle of a conversation by voice, clicking the mascot just opens the chat box (with everything said so

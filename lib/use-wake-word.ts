@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MIC_FATAL, MIC_PROBLEMS, recognitionClass, recognitionLang } from "./recognition";
+import { isTouchDevice, MIC_FATAL, MIC_PROBLEMS, recognitionClass, recognitionLang } from "./recognition";
 import { startLevelMeter } from "./mic-level";
 import { createWakeListener, type WakeListener, type WakePhase } from "./wake-word";
 
@@ -48,7 +48,9 @@ export function useWakeWord({
     const Rec = recognitionClass();
     if (!enabled || !Rec) return;
     // Talking over the mascot needs to measure the microphone's loudness (see lib/mic-level.ts); where that is not possible, only the phrase interrupts
-    const meter = interrupt ? startLevelMeter() : undefined;
+    // (not on a phone: there the browser gives the microphone to the recogniser or to the meter, not both, and the meter would
+    // leave the recogniser deaf. On a phone the phrase interrupts, as the rest of the voice conversation works the same.)
+    const meter = interrupt && !isTouchDevice() ? startLevelMeter() : undefined;
     const l = createWakeListener({
       meter,
       Rec,

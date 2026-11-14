@@ -34,11 +34,36 @@ export function recognitionLang(): string {
   return /^en(?:-|_|$)/i.test(l) ? l : "en-US";
 }
 
+/**
+ * Is this a phone or a tablet (touch first)? There, the browser's speech recognition and a second use of the microphone do not
+ * work at the same time (the loudness meter would take the microphone away from the recogniser), and the microphone may only
+ * be started by a tap, not when the page opens.
+ */
+export function isTouchDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  const coarse = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  return coarse || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+}
+
+/** Why the microphone was refused, in words that say what to do (a page that is not https can never use the microphone; phones have their own switches). */
+function blocked(): string {
+  if (typeof window !== "undefined" && !window.isSecureContext)
+    return "The microphone only works on a secure (https) page. This page is not one, so the browser won't give me the microphone.";
+  if (typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent))
+    return "The microphone is blocked. Allow it for this site in Safari (the aA button), and make sure Siri & Dictation is on in Settings.";
+  if (isTouchDevice()) return "The microphone is blocked. Tap the lock icon by the address, allow the microphone for this site, then tap me again.";
+  return "The microphone is blocked. Allow it in your browser's address bar to talk to me.";
+}
+
 /** What to tell the visitor when the microphone fails (undefined: nothing worth saying, e.g. they just stayed quiet). */
 export const MIC_PROBLEMS: Record<string, string> = {
-  "not-allowed": "The microphone is blocked. Allow it in your browser's address bar to talk to me.",
-  "service-not-allowed": "The microphone is blocked. Allow it in your browser's address bar to talk to me.",
-  "audio-capture": "I can't find a microphone on this device.",
+  get "not-allowed"() {
+    return blocked();
+  },
+  get "service-not-allowed"() {
+    return blocked();
+  },
+  "audio-capture": "I can't find a microphone on this device, or another app is using it.",
   network: "I couldn't hear you: the speech service isn't reachable right now.",
 };
 
