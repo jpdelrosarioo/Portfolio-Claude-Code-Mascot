@@ -15,6 +15,8 @@ type Handlers = {
   onIdle?: () => void;
   /** Is the mascot talking (or did it stop a moment ago)? */
   speaking?: () => boolean;
+  /** Is the mascot working on an answer (waiting for it, or typing it out) without talking? Speaking then stops it too. */
+  busy?: () => boolean;
   /** What the mascot has been saying (so its voice, heard through the microphone, is not taken for the visitor's). */
   echoText?: () => string;
   /** The visitor spoke over the mascot: hold its voice right away. What they say next is their message, and the mascot answers it. */
@@ -74,7 +76,9 @@ export function useWakeWord({
       onIdle: () => latest.current.onIdle?.(),
       speaking: () => latest.current.speaking?.() ?? false,
       echoText: () => latest.current.echoText?.() ?? "",
-      onPause: meter ? () => latest.current.onPause?.() : undefined,
+      busy: () => latest.current.busy?.() ?? false,
+      // (always: without a loudness meter, as on a phone, the words it hears can still tell that someone is talking over it)
+      onPause: interrupt ? () => latest.current.onPause?.() : undefined,
       onResume: () => latest.current.onResume?.(),
       onPhase: setPhase,
       onWake: () => latest.current.onWake?.(),

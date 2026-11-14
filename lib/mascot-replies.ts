@@ -33,6 +33,7 @@ const GREETING: Record<Mood, string[]> = {
   sad: ["Hi... I'm glad you came by.", "Hello. It's good to have some company."],
   worried: ["Hi! I'm okay, just a little worried. I'm glad you're here.", "Hello. Stay a while?"],
 };
+const HUSH = ["Okay, I'm listening.", "Sure. Go ahead, I'm all ears.", "Okay, I'll stop. What's on your mind?", "Of course. I'm listening."];
 const FAREWELL = ["Take care! I'll be right here if you need me.", "Goodbye for now. God bless you! 🙂", "See you soon. Be kind to yourself today.", "Bye! Come back and tell me how it went."];
 const THANKS = ["You're very welcome!", "Anytime. I'm always happy to help. 🙂", "That makes me smile.", "Of course! That's what I'm here for."];
 const COMPLIMENT = ["Aww, thank you! That made my day. 🥰", "You're so kind. I'm blushing!", "Thank you! You're wonderful too."];
@@ -58,6 +59,8 @@ export function quickReply(a: Analysis, mood: Mood, hour: number, rng: () => num
     }
     case "thanks":
       return a.words <= 6 && !a.question ? { text: pick(THANKS, rng) } : null;
+    case "hush":
+      return { text: pick(HUSH, rng) };
     case "farewell":
       return a.words <= 6 && !a.question ? { text: pick(FAREWELL, rng) } : null;
     case "compliment":

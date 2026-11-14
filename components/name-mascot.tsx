@@ -347,6 +347,7 @@ export function NameMascot({ name, className }: { name: string; className?: stri
     // (the mascot is the one talking, with or without its chat box open: the voice is going or just stopped, and its last
     // words come back through the microphone for a moment. The chat box's own voice is not the mascot's)
     speaking: () => speechSource() === "mascot" && msSinceSpeech() < 1200,
+    busy: () => busy, // (waiting for its answer: speaking up stops it too)
     echoText: recentSpeech, // (whatever the voice says, the chat's too)
     pauseMs: pauseSec * 1000,
     onWake: () => {

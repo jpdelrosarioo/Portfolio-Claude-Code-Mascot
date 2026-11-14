@@ -271,7 +271,7 @@ export const mascot = {
      * followUpSeconds, or closes the mascot. false: the phrase is needed for every message.
      */
     conversation: true,
-    followUpSeconds: 12,
+    followUpSeconds: 8, // after it has answered it listens this long; if nobody speaks it goes back to waiting for the phrase
     /**
      * The visitor can talk over the mascot, just like talking to a person: the moment the microphone is clearly louder than
      * it is while the mascot speaks alone (about a quarter of a second), the mascot's voice and the words following it STOP,
@@ -281,9 +281,11 @@ export const mascot = {
      * where. Saying "continue" / "go on" / "carry on what you were saying" right away makes the voice go on from the
      * same word; saying it later makes the mascot pick that answer up from where it stopped. (If they said nothing at all,
      * it was only a noise, and the mascot carries on where it was after a few seconds.)
-     * The mascot's own voice, coming back through the speakers, never counts. The loudness is measured on the device; no
-     * audio is recorded or sent. If it can't be measured, only the phrase interrupts. A very quiet interruption may be
-     * missed; the phrase works then. false: only the phrase (or the buttons) interrupts it.
+     * Two things tell it that someone is talking: the microphone getting louder than the mascot's voice alone, and words the
+     * recogniser hears that are not the mascot's own (this is what works on a phone, where the loudness can't be measured, and
+     * for quiet voices). Speaking up also stops it while it is still working on an answer. The mascot's own voice, coming back
+     * through the speakers, never counts. The loudness is measured on the device; no audio is recorded or sent. A single
+     * "stop" or "wait" is enough; anything else takes two words. false: only the phrase (or the buttons) interrupts it.
      */
     interrupt: true,
   },

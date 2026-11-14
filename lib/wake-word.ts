@@ -79,7 +79,7 @@ export function matchWake(text: string, target: string[]): { end: number } | nul
 
 /** "bye", "goodbye", "ok thanks, bye", "that's all", "stop listening": the visitor is ending the conversation. */
 const GOODBYE =
-  /^(?:(?:ok(?:ay)?|alright|well|so|thanks?(?: you)?|thank you)[, ]+)*(?:good ?bye|bye(?: bye)?|see you(?: later)?|stop(?: listening)?|that'?s all|that is all|never ?mind|i'?m done)(?:[, ]+(?:thanks?(?: you)?|thank you|claude(?: code)?|mascot))?$/;
+  /^(?:(?:ok(?:ay)?|alright|well|so|thanks?(?: you)?|thank you)[, ]+)*(?:good ?bye|bye(?: bye)?|see you(?: later)?|stop listening|that'?s all|that is all|never ?mind|i'?m done)(?:[, ]+(?:thanks?(?: you)?|thank you|claude(?: code)?|mascot))?$/;
 export const isGoodbye = (text: string) => GOODBYE.test(text.toLowerCase().replace(/[^a-z' ]+/g, " ").replace(/\s+/g, " ").trim());
 
 /* ---------- telling the visitor's voice from the mascot's own ---------- */
@@ -225,6 +225,11 @@ export type WakeOptions = {
   /** What the mascot has been saying, so that its voice is not mistaken for the visitor's. */
   echoText?: () => string;
   /**
+   * Is the mascot busy without talking (waiting for its answer, or typing it out)? Anything the visitor says then stops it and
+   * is taken as their message, as when they talk over its voice (there is no voice to mistake for theirs, so one word is enough).
+   */
+  busy?: () => boolean;
+  /**
    * The visitor spoke over the mascot: hold its voice right away. From then on what they say is their message (`onHeard`
    * shows it, `onCommand` gets it), and the mascot answers it instead of what it was saying. Needs `speaking` and `meter`.
    */
@@ -304,12 +309,12 @@ export function createWakeListener(o: WakeOptions) {
   const firstWordMs = o.firstWordMs ?? 7000;
   const maxMs = o.maxMs ?? 30000;
   const followUpMs = o.followUpMs ?? 8000;
-  const interruptHoldMs = o.interruptHoldMs ?? 100;
-  const interruptCooldownMs = o.interruptCooldownMs ?? 3000;
+  const interruptHoldMs = o.interruptHoldMs ?? 70;
+  const interruptCooldownMs = o.interruptCooldownMs ?? 2000;
   const interruptListenMs = o.interruptListenMs ?? 4000;
   const meterEveryMs = o.meterEveryMs ?? 50;
   const LOUD_WINDOW = 5; // measurements that make up "now" (5 × 50 ms = a quarter of a second)
-  const LOUD_NEEDED = o.interruptLearnSamples ?? 20; // measurements of the mascot talking on its own needed before anyone can be told apart from it (1 s)
+  const LOUD_NEEDED = o.interruptLearnSamples ?? 12; // measurements of the mascot talking on its own needed before anyone can be told apart from it (0.6 s)
   const problems = o.problems ?? {};
   const fatal = o.fatal ?? new Set<string>();
 
@@ -399,6 +404,7 @@ export function createWakeListener(o: WakeOptions) {
     }
     if (text) {
       conversing = !isGoodbye(text); // after "bye" the mascot still answers, but does not listen for more
+      wordsQuietUntil = Date.now() + WORDS_QUIET_MS; // (the tail of what they just said must not stop the answer it starts)
       o.onCommand?.(text);
     } else {
       conversing = false;
@@ -501,9 +507,12 @@ export function createWakeListener(o: WakeOptions) {
     } else if (loud.length || voiceHeld) stopMeasuring();
   };
 
-  /** Is the microphone clearly louder right now than it was while the mascot spoke on its own? */
-  const louderThanMascot = () => {
-    if (!o.meter?.ready() || loud.length < LOUD_WINDOW + LOUD_NEEDED) return false;
+  /**
+   * Is the microphone louder right now than it was while the mascot spoke on its own? By "clearly" (the default), or only a
+   * little (the words it hears then say whether it is a person or an echo). Returns null when it cannot tell yet.
+   */
+  const louderThanMascot = (factor = 1.3, add = 0.006, count = LOUD_WINDOW - 2): boolean | null => {
+    if (!o.meter?.ready() || loud.length < LOUD_WINDOW + LOUD_NEEDED) return null;
     const now = loud.slice(-LOUD_WINDOW);
     const before = loud.slice(0, -LOUD_WINDOW);
     // Learn what the mascot's voice sounds like from the moments it is really sounding: its pauses between words and
@@ -512,10 +521,70 @@ export function createWakeListener(o: WakeOptions) {
     // taken for a person.
     const peak = Math.max(...before);
     const active = before.filter((v) => v > peak * 0.25).sort((a, b) => a - b);
-    if (active.length < LOUD_NEEDED * 0.6) return false;
+    if (active.length < LOUD_NEEDED * 0.6) return null;
     const typical = active[Math.floor(active.length * 0.9)];
-    const limit = typical * 1.5 + 0.01;
-    return now.filter((v) => v > limit).length >= LOUD_WINDOW - 1;
+    const limit = typical * factor + add; // (a person talking over the voice adds clearly to it; its own emphasis does not reach this)
+    return now.filter((v) => v > limit).length >= count;
+  };
+
+  /* The other way to tell that someone is talking: the recogniser writes down words that are not the mascot's own. This is
+   * what works on a phone (no loudness meter there) and when the mascot is only thinking, and it catches quiet voices that the
+   * loudness cannot. While the mascot's voice plays its own words come back through the microphone and are left out (loosely
+   * compared: a misheard echo is still an echo), so what is counted is only what somebody else says; it takes a few words
+   * said within a couple of seconds (an explicit "stop" or "wait" is enough on its own), and with a working meter one more, so
+   * that echo garbled in a strange way cannot stop it. */
+  // One of these is enough on its own (the words people use to get someone's attention or to make them stop)
+  const STOP_WORDS = new Set(["stop", "wait", "pause", "quiet", "enough", "listen", "excuse", "hold", "no", "hey", "hello", "hi", "sorry", "pardon", "huh", "what", "why", "how", "please"]);
+  const WORD_WINDOW_MS = 2500;
+  const WORDS_QUIET_MS = 800; // right after a message is sent, the recogniser may still be rewriting its end: it does not count as new speech
+  let seen: Mark = START; // where the results stood at the last look
+  let wordsQuietUntil = 0;
+  let wordsTimer: Timer | undefined; // looks again when the quiet spell is over (what was said in it is not forgotten)
+  let wordLog: { at: number; n: number; stop: boolean; before: Mark }[] = [];
+
+  /** Takes the new words (leaving out the mascot's own) into the log, then decides whether somebody is talking. */
+  const tryWordInterrupt = (res: ArrayLike<RecognitionResult>, voice: boolean) => {
+    const now = Date.now();
+    const before = seen;
+    let fresh = "";
+    for (let k = Math.max(before.i, 0); k < res.length; k++) fresh += ` ${since(k === before.i ? before.t : "", res[k][0].transcript)}`;
+    seen = endOf(res);
+    const echo = voice ? wordsOf(o.echoText?.() ?? "").map((x) => x.w) : [];
+    // (an echo is written down in all sorts of ways: a word that only sounds like one the mascot said is not counted either)
+    const echoLike = (w: string) => isEchoWord(w, echo) || echo.some((e) => Math.abs(e.length - w.length) <= 2 && soundKey(e) === soundKey(w));
+    const words = wordsOf(fresh)
+      .map((x) => x.w)
+      .filter((w) => !echoLike(w));
+    if (words.length) wordLog.push({ at: now, n: words.length, stop: words.some((w) => STOP_WORDS.has(w)), before });
+    decideWords(res, voice);
+  };
+
+  const decideWords = (res: ArrayLike<RecognitionResult>, voice: boolean) => {
+    const now = Date.now();
+    wordLog = wordLog.filter((e) => now - e.at <= WORD_WINDOW_MS);
+    if (phase !== "wake" || blocked || !o.onPause || now < cooldownUntil || !wordLog.length) return;
+    if (now < wordsQuietUntil) {
+      clearTimeout(wordsTimer);
+      wordsTimer = setTimeout(() => {
+        if (phase === "wake" && results && (o.speaking?.() || o.busy?.())) decideWords(results, !!o.speaking?.());
+      }, wordsQuietUntil - now + 30);
+      return;
+    }
+    const total = wordLog.reduce((a, e) => a + e.n, 0);
+    const stop = wordLog.some((e) => e.stop);
+    // Two words (the recogniser rewriting the end of what they just said must not count as new speech). While the mascot's voice
+    // plays and the meter works, the microphone must also be a little louder than the voice alone (an echo that was written down
+    // as new words is no louder than the voice), and until that can be judged, more words are needed.
+    let need = 2;
+    if (voice && o.meter?.ready() && !stop) {
+      const louder = louderThanMascot(1.1, 0.003, 2);
+      if (louder === false) return;
+      if (louder === null) need = 4;
+    }
+    if (total < need && !stop) return;
+    evBase = wordLog[0].before; // (their first words are not lost: the message starts where they began)
+    wordLog = [];
+    takeTheFloor(res);
   };
 
   /** Where the results end right now (a place to measure from later). */
@@ -609,8 +678,21 @@ export function createWakeListener(o: WakeOptions) {
         o.onWake?.();
         break;
       }
-      // not the phrase, but the visitor talking over the mascot: it stops, and they carry on
-      if (talking) tryInterrupt(res);
+      // not the phrase, but the visitor talking over the mascot (or while it is working on an answer): it stops, and they carry on
+      if (phase === "wake") {
+        const voice = !!o.speaking?.();
+        if (voice || (o.busy?.() ?? false)) {
+          if (voice) tryInterrupt(res); // (by how loud they are)
+          if (phase === "wake") tryWordInterrupt(res, voice); // (by what they say)
+        } else {
+          seen = endOf(res);
+          wordLog = [];
+        }
+      }
+    }
+    if (phase !== "wake") {
+      seen = endOf(res);
+      wordLog = [];
     }
     if (phase === "command") {
       hear(res);
@@ -642,6 +724,9 @@ export function createWakeListener(o: WakeOptions) {
     }
     skip = START;
     results = null;
+    seen = START;
+    wordLog = [];
+    wordsQuietUntil = 0; // (a new session: nothing of the old one is still arriving)
     if (!want || blocked) return;
     // A session that ran normally is replaced at once, so the gap where "Hey Claude Code" could be missed is as short as
     // possible. Sessions that end immediately, over and over (no network, say) are retried less and less often.
@@ -727,6 +812,7 @@ export function createWakeListener(o: WakeOptions) {
     want = false;
     conversing = false;
     clearTimeout(restart);
+    clearTimeout(wordsTimer);
     clearInterval(loudTimer);
     loudTimer = undefined;
     if (voiceHeld) o.onResume?.();

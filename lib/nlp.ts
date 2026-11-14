@@ -20,6 +20,7 @@ export type Intent =
   | "encourage"
   | "joke"
   | "prayer"
+  | "hush"
   | "question"
   | "none";
 export type Command = "sit" | "stand" | "walk" | "come" | "stay" | "sleep" | "wake" | "dance" | "jump" | "wave";
@@ -141,6 +142,8 @@ const INTENTS: [Intent, RegExp][] = [
   ["insult", /\b(?:you'?re|you\s+are|ur)\s+(?:so\s+|really\s+)?(?:stupid|dumb|useless|ugly|annoying|trash|bad|worthless)\b|\bshut\s+up\b|\bi\s+hate\s+you\b/],
   ["encourage", /\b(?:encourage|motivate|cheer\s+me\s+up|need\s+(?:a\s+)?(?:hug|encouragement|hope|motivation|someone)|inspire\s+me|i'?m\s+(?:feeling\s+)?(?:down|low|sad)|give\s+me\s+hope)\b/],
   ["joke", /\b(?:joke|make\s+me\s+laugh|something\s+funny)\b/],
+  // "stop", "wait", "one moment": they want the mascot to be quiet so that they can talk (it is not a goodbye, and not a question for the AI)
+  ["hush", /^(?:(?:ok(?:ay)?|alright|please|hey|sorry|no)[,\s]+)*(?:stop|wait|pause|hold\s+on|hold\s+up|quiet|be\s+quiet|enough|shh+|hush|stop\s+it|stop\s+talking|that'?s\s+enough|one\s+(?:second|moment|sec))(?:[,\s]+(?:please|now|a\s+(?:second|moment|sec)|for\s+(?:a\s+)?(?:second|moment)|talking|it|that))*[.!?\s]*$/],
   ["prayer", /\b(?:pray|prayer|pray\s+for\s+me)\b/],
 ];
 
