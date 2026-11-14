@@ -117,6 +117,13 @@ const paths = {
       <line x1="16" x2="22" y1="9" y2="15" />
     </>
   ),
+  mic: (
+    <>
+      <path d="M12 19v3" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <rect x="9" y="2" width="6" height="13" rx="3" />
+    </>
+  ),
   cpu: (
     <>
       <rect width="16" height="16" x="4" y="4" rx="2" />

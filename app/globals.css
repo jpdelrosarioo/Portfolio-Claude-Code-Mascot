@@ -187,7 +187,50 @@
 .mascot-leg-alt { animation-delay: -0.8s; }
 .mascot-wave { animation: mascot-wave 0.9s ease-in-out 3; transform-box: fill-box; transform-origin: left center; }
 .bubble-in { animation: bubble-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-@keyframes mascot-talk { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1.6); } }
+/* ---------- the mascot walks, hops, dances, sleeps, and shows how it feels ---------- */
+@keyframes mascot-step { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.1px); } }
+@keyframes mascot-walk-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.9px); } }
+@keyframes mascot-dance-body { 0%, 100% { transform: translate(-0.6px, 0) rotate(-3deg); } 50% { transform: translate(0.6px, -1.2px) rotate(3deg); } }
+@keyframes mascot-dance-arm { 0%, 100% { transform: rotate(-60deg); } 50% { transform: rotate(35deg); } }
+@keyframes mascot-float { 0% { opacity: 0; transform: translateY(4px) scale(0.7); } 18% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px) scale(1.05); } }
+.mascot-step-a { animation: mascot-step 0.32s ease-in-out infinite; }
+.mascot-step-b { animation: mascot-step 0.32s ease-in-out infinite; animation-delay: -0.16s; }
+.mascot-walk-bob { animation: mascot-walk-bob 0.32s ease-in-out infinite; }
+.mascot-dance-body { animation: mascot-dance-body 0.42s ease-in-out infinite; transform-box: fill-box; transform-origin: bottom center; }
+.mascot-dance-arm { animation: mascot-dance-arm 0.42s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.mascot-dance-alt { animation-delay: -0.21s; }
+.mascot-slow { animation-duration: 4.2s; }
+.mascot-emote { animation: mascot-float 1.9s ease-out both; }
+.mascot-emote-loop { animation: mascot-float 2.8s ease-out infinite; }
+/* ---------- Radiance: the mascot shines when God is mentioned (data-shine="on" on its box) ---------- */
+@keyframes mascot-halo-pulse { 0%, 100% { transform: scale(0.9); } 50% { transform: scale(1.1); } }
+@keyframes mascot-rays-turn { to { transform: rotate(360deg); } }
+@keyframes mascot-twinkle { 0%, 100% { opacity: 0; transform: scale(0.3); } 50% { opacity: 1; transform: scale(1); } }
+@keyframes mascot-shine {
+  0%, 100% { filter: brightness(1.12) saturate(1.05) drop-shadow(0 0 2px rgba(255, 232, 140, 1)) drop-shadow(0 0 8px rgba(255, 200, 70, 0.8)); }
+  50% { filter: brightness(1.25) saturate(1.1) drop-shadow(0 0 4px rgba(255, 244, 180, 1)) drop-shadow(0 0 15px rgba(255, 196, 60, 0.95)); }
+}
+.mascot-aura, .mascot-rays, .mascot-glint { position: absolute; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 900ms ease; }
+.mascot-aura {
+  left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 246, 190, 0.95) 0%, rgba(255, 220, 110, 0.6) 30%, rgba(255, 200, 80, 0.2) 56%, transparent 72%);
+}
+.mascot-rays {
+  left: 50%; top: 50%; width: 132px; height: 132px; margin: -66px 0 0 -66px; border-radius: 9999px;
+  background: repeating-conic-gradient(rgba(255, 226, 120, 0.8) 0deg 6deg, transparent 6deg 22.5deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0, #000 22%, transparent 66%);
+  mask-image: radial-gradient(circle, #000 0, #000 22%, transparent 66%);
+}
+.mascot-glint { z-index: 1; width: 10px; height: 10px; }
+[data-shine="on"] .mascot-aura { opacity: 1; animation: mascot-halo-pulse 2.2s ease-in-out infinite; }
+[data-shine="on"] .mascot-rays { opacity: 0.85; animation: mascot-rays-turn 14s linear infinite; }
+[data-shine="on"] .mascot-glint { opacity: 1; animation: mascot-twinkle 1.8s ease-in-out infinite; }
+[data-shine="on"] .mascot-figure { animation: mascot-shine 2.2s ease-in-out infinite; }
+/* (reduced motion stops the animations: the glow stays, still) */
+@media (prefers-reduced-motion: reduce) {
+  [data-shine="on"] .mascot-figure { filter: brightness(1.15) drop-shadow(0 0 3px rgba(255, 232, 140, 1)) drop-shadow(0 0 10px rgba(255, 200, 70, 0.85)); }
+}
+
 /* ---------- Cursor tour ---------- */
 @keyframes tour-ripple { from { transform: scale(0.3); opacity: 0.7; } to { transform: scale(2.6); opacity: 0; } }
 @keyframes tour-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -197,7 +240,6 @@
 .tour-bar { transform-origin: left; animation: tour-bar var(--tour-ms, 5000ms) linear both; }
 .tour-card-in { animation: tour-card-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .tour-cursor-in { animation: tour-cursor-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-.mascot-mouth { animation: mascot-talk 0.26s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 
 /* ---------- Entrance: fade up 12px over 700ms, staggered (--d set by <Reveal>) ---------- */
 @keyframes fade-up {

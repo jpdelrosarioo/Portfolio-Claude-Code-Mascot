@@ -3,20 +3,36 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { mascot, site, tour } from "@/data/site";
 import { findReference, lookUp, markedReferences, withoutMarkers, type VerseLookup } from "@/lib/bible";
+import { useDictation } from "@/lib/dictation";
+import { useWakeWord } from "@/lib/use-wake-word";
+import { play } from "@/lib/sounds";
 import { moderate, moderationMessage } from "@/lib/moderation";
 import { tourSeen, tourWillAutoStart } from "@/lib/tour-state";
-import { isSpeaking, sentenceBoundary, speak, speechSupported, stopSpeaking, type SpeechEvent } from "@/lib/speech";
+import { isSpeaking, mouthLevel, msSinceSpeech, pauseSpeaking, recentSpeech, resumeSpeaking, sentenceBoundary, speechSource, subscribeSpeaking, speak, speechSupported, stopSpeaking, type SpeechEvent } from "@/lib/speech";
+import { createPortal } from "react-dom";
+import { analyze, type Analysis } from "@/lib/nlp";
+import { createMood, hear as moodHear, isRadiant, labelOf, pet as moodPet, say as moodSay, shine as moodShine, tick as moodTick, POSTURE, type Emote, type Mood, type MoodState } from "@/lib/mood";
+import { quickReply } from "@/lib/mascot-replies";
+import { useRoam } from "@/lib/use-roam";
+import type { Pose } from "@/lib/roam";
 import { Icon } from "./icons";
+import { MascotSprite } from "./mascot-sprite";
 
 type Verse = { text: string; ref: string };
 type Step = "hidden" | "greet" | "ask" | "verse" | "chat";
-/** `local`: shown in the bubble but never sent to the AI (a blocked message and the mascot's reply to it). */
-type Msg = { role: "user" | "assistant"; content: string; local?: boolean };
+/** `local`: shown in the bubble but never sent to the AI (a blocked message and the mascot's reply to it).
+ *  `cut`: the visitor interrupted this answer; `content` is only what had been said when they did (the AI is told, so
+ *  "continue" can pick it up from there). */
+type Msg = { role: "user" | "assistant"; content: string; local?: boolean; cut?: boolean };
 
 const SEEN = "mascot-greeted"; // the greeting opens by itself once per visit; afterwards the mascot is clicked to talk
 const VOICE_KEY = "mascot-voice"; // the visitor's choice: the mascot speaks out loud, or not
 const VOICE = { pitch: 1.35, rate: 1.05 }; // a little higher and brighter than the chat voice: a small, cheerful character
+const MAX_INPUT = 300; // longest message the visitor can type
+const MAX_SPOKEN = 500; // ...and say (the longest the server takes: a long sentence is not cut short)
+const REQUEST_STALL = 25000; // no word from the AI for this long (ms): give up, so a stuck request does not freeze the conversation
 const noSubscribe = () => () => {};
+const BLOCKED = "I can’t talk out loud yet: your browser needs you to click or tap the page once. Then I will speak. You can read me here meanwhile.";
 
 // How fast the words appear when no voice is leading (characters per millisecond: about the old typing speed)...
 const FAST = 0.045;
@@ -147,38 +163,22 @@ const TROUBLE: Record<string, string> = {
   upstream: "I lost my words for a second. Could you try again?",
 };
 
-/**
- * A small pixel mascot (inspired by the Claude Code mascot) sitting on top of the surname, swinging its legs. Its mouth
- * moves while it talks.
- */
-function Mascot({ waving, talking }: { waving: boolean; talking: boolean }) {
-  const body = "#D97757"; // Claude coral
-  return (
-    <svg viewBox="0 0 16 14" shapeRendering="crispEdges" aria-hidden className="block h-[35px] w-10 overflow-visible">
-      {/* legs dangle over the edge of the letters */}
-      <rect className="mascot-leg" x="4" y="9" width="1" height="4" fill={body} />
-      <rect className="mascot-leg mascot-leg-alt" x="6" y="9" width="1" height="4" fill={body} />
-      <rect className="mascot-leg" x="9" y="9" width="1" height="4" fill={body} />
-      <rect className="mascot-leg mascot-leg-alt" x="11" y="9" width="1" height="4" fill={body} />
-      <g className="mascot-bob">
-        <rect x="3" y="2" width="10" height="7" fill={body} />
-        <rect x="1" y="5" width="2" height="2" fill={body} />
-        <rect className={waving ? "mascot-wave" : undefined} x="13" y="5" width="2" height="2" fill={body} />
-        <rect className="mascot-eye" x="5" y="4" width="1" height="2" fill="#141414" />
-        <rect className="mascot-eye" x="10" y="4" width="1" height="2" fill="#141414" />
-        {talking && <rect className="mascot-mouth" x="7" y="7" width="2" height="1" fill="#141414" />}
-      </g>
-    </svg>
-  );
-}
-
-/** The page title (your name) with the mascot sitting on the surname. The mascot and its bubble sit next to the heading,
- *  not inside it, so screen readers still read the heading as just your name. */
+/** The page title (your name) with the mascot. The mascot lives on the intro: it perches on the surname (where its chat box
+ *  opens), sitting or standing as its mood says, and wanders around the portrait. The mascot and its bubble sit next to the
+ *  heading, not inside it, so screen readers still read the heading as just your name. */
 export function NameMascot({ name, className }: { name: string; className?: string }) {
   const [first, ...rest] = name.trim().split(/\s+/);
   const surname = rest.join(" ");
   const surnameRef = useRef<HTMLSpanElement>(null);
   const [spot, setSpot] = useState<{ left: number; top: number; width: number; em: number; room: number } | null>(null);
+  // the intro the mascot lives in (it walks over the whole of it), and the word it perches on
+  const [surnameEl, setSurnameEl] = useState<HTMLElement | null>(null);
+  const [header, setHeader] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = surnameRef.current;
+    setSurnameEl(el);
+    setHeader(el?.closest("header") ?? null);
+  }, [surname]);
 
   // keep the mascot lined up with the surname (it moves when the layout or the font size changes)
   useEffect(() => {
@@ -221,9 +221,250 @@ export function NameMascot({ name, className }: { name: string; className?: stri
   const stick = useRef(true); // keep the bubble scrolled to the newest words, unless the visitor scrolled up
   const timer = useRef(0);
   const abort = useRef<AbortController | null>(null);
+  const lastSpoken = useRef({ text: "", at: 0 }); // the last message that was said out loud (see send)
+  const request = useRef(0); // counts the questions sent, so an old one finishing late can't clear a newer one's "busy"
   const voiceRef = useRef(true);
 
   const canSpeak = useSyncExternalStore(noSubscribe, speechSupported, () => false);
+
+  // The mouth follows the words the voice is saying (not a fixed wiggle): while the mascot speaks, it is read about thirty
+  // times a second from the voice's timetable (lib/mouth.ts, lib/speech.ts), which is lined up with the voice at every word
+  // the browser reports. It is shut between syllables, between sentences and while the voice is held.
+  const voiceOn = useSyncExternalStore(subscribeSpeaking, isSpeaking, () => false);
+  const [mouth, setMouth] = useState<0 | 1 | 2>(0);
+  useEffect(() => {
+    if (!voiceOn) {
+      setMouth(0);
+      return;
+    }
+    const id = window.setInterval(() => {
+      const level = speechSource() === "mascot" ? mouthLevel() : 0; // (the chat box's voice is not the mascot's)
+      const next = level > 0.62 ? 2 : level > 0.18 ? 1 : 0;
+      setMouth((m) => (m === next ? m : next));
+    }, 33);
+    return () => window.clearInterval(id);
+  }, [voiceOn]);
+
+  // The mascot's mood (lib/mood.ts): it starts from the time of day, moves with what the visitor says (lib/nlp.ts works out how
+  // they feel and what they mean), and settles back by itself. Its name decides whether the mascot sits or stands.
+  const moodRef = useRef<MoodState | null>(null);
+  const [mood, setMood] = useState<Mood | null>(null);
+  const [emote, setEmote] = useState<Emote | null>(null); // a heart, a sparkle or a drop floating up for a moment
+  const [radiant, setRadiant] = useState(false); // God was mentioned: it shines (a bright glow round its head and body)
+  const emoteTimer = useRef(0);
+  const syncMood = useCallback(() => {
+    const s = moodRef.current;
+    if (!s) return;
+    const now = Date.now();
+    setMood(labelOf(s, now));
+    setRadiant(isRadiant(s, now));
+  }, []);
+  useEffect(() => {
+    moodRef.current = createMood(Date.now());
+    syncMood();
+    const id = window.setInterval(() => {
+      const s = moodRef.current;
+      if (s) {
+        moodTick(s, Date.now());
+        syncMood();
+      }
+    }, 1000);
+    return () => {
+      window.clearInterval(id);
+      window.clearTimeout(emoteTimer.current);
+    };
+  }, [syncMood]);
+  const showEmote = useCallback((e: Emote | null) => {
+    if (!e) return;
+    setEmote(e);
+    window.clearTimeout(emoteTimer.current);
+    emoteTimer.current = window.setTimeout(() => setEmote(null), 2200);
+  }, []);
+  /** The visitor said something: the mascot feels it. */
+  const feel = (a: Analysis) => {
+    const s = moodRef.current;
+    if (!s) return;
+    showEmote(moodHear(s, a, Date.now()));
+    syncMood();
+  };
+
+  // Talking instead of typing: the spoken words are added after whatever was already in the box
+  const typed = useRef("");
+  const dictation = useDictation((spoken) => setInput(`${typed.current} ${spoken}`.trim().slice(0, MAX_INPUT)));
+  const { listening, stop: stopListening } = dictation;
+
+  // Hands-free: the visitor says the wake phrase ("Hey Claude Code") and the mascot opens and listens; when they stop
+  // talking for the pause time, the message is sent (see lib/wake-word.ts). It starts by itself when the page opens.
+  const WAKE = mascot.wakeWord;
+  const [handsFree, setHandsFree] = useState(false);
+  const pauseSec = WAKE.pauseSeconds;
+  const [missed, setMissed] = useState(false); // the phrase was heard but nothing followed
+  const [heldVoice, setHeldVoice] = useState(false); // the voice is held because someone is talking over it: the mascot is listening
+  const [awaiting, setAwaiting] = useState(false); // a spoken message was sent: once the mascot has finished answering, it listens again
+  const [followUp, setFollowUp] = useState(false); // listening for the next message of a conversation (no phrase needed)
+  const [liveWords, setLiveWords] = useState(""); // what is being said after the phrase (shown in the bubble, never put in the text box)
+  const [wakeProblem, setWakeProblem] = useState<string | null>(null);
+  const [voiceBlocked, setVoiceBlocked] = useState(false); // the browser would not let the mascot speak (it needs the page to have been clicked once)
+  // When the visitor interrupts an answer, it stays in the conversation, cut where they interrupted it (what had been said
+  // so far), so that the mascot, and the AI, still know exactly where it was: "continue" can then pick it up from there.
+  const cutLast = (h: Msg[]): Msg[] => {
+    const i = h.length - 1;
+    const last = h[i];
+    if (!last || last.role !== "assistant" || last.local || last.cut || !last.content) return h;
+    const full = withoutMarkers(last.content);
+    const said = voice && canSpeak ? Math.min(full.length, reveal.n) : full.length; // (the words on screen follow the voice)
+    if (said >= full.length) return h; // it had been said all the way: nothing was cut
+    const copy = h.slice();
+    copy[i] = { ...last, content: full.slice(0, said).trimEnd(), cut: true };
+    return copy;
+  };
+
+  // The visitor said the phrase: the mascot stops whatever it was doing, and the bubble shows it is listening
+  const makeRoom = () => {
+    setHistory(cutLast);
+    setHeldVoice(false);
+    stopSpeaking();
+    abort.current?.abort();
+    setBusy(false); // (the cancelled answer is over: nothing is being waited for)
+    stopListening();
+    setMissed(false);
+    setLiveWords("");
+    setAwaiting(false);
+    setFollowUp(false);
+    setCards([]);
+    setMinimized(false);
+    setStep((s) => (s === "hidden" ? s : "chat")); // (the chat box opens only when they click the mascot: voice works without it)
+    stick.current = true;
+  };
+  const wake = useWakeWord({
+    enabled: WAKE.enabled && handsFree,
+    phrase: WAKE.phrase,
+    followUpMs: WAKE.followUpSeconds * 1000,
+    interrupt: WAKE.interrupt,
+    // (the mascot is the one talking, with or without its chat box open: the voice is going or just stopped, and its last
+    // words come back through the microphone for a moment. The chat box's own voice is not the mascot's)
+    speaking: () => speechSource() === "mascot" && msSinceSpeech() < 1200,
+    echoText: recentSpeech, // (whatever the voice says, the chat's too)
+    pauseMs: pauseSec * 1000,
+    onWake: () => {
+      // The phrase answers at once: a tiny tick and the mascot waves (nothing pops up: the chat box is opened by clicking the
+      // mascot, and everything works by voice without it). The tick is short and quiet so it doesn't get in the way of the
+      // first words after the phrase.
+      play("tick", true);
+      makeRoom();
+      setWaving(true);
+      window.setTimeout(() => setWaving(false), 1800);
+    },
+    onPause: () => {
+      // Someone is talking over the mascot: its voice (and the words that follow it) stops at once, and it listens. What they
+      // say is sent as their message and the mascot answers that instead (see onCommand).
+      pauseSpeaking();
+      setHeldVoice(true);
+      setAwaiting(false);
+      setFollowUp(false);
+      setLiveWords("");
+    },
+    onResume: () => {
+      // It was only a noise: the mascot goes on where it was, and listens again when it is done
+      resumeSpeaking();
+      setHeldVoice(false);
+      setLiveWords("");
+      setAwaiting(WAKE.conversation);
+    },
+    onHeard: (text) => {
+      setLiveWords(text.slice(0, MAX_SPOKEN));
+      if (text) {
+        // If the chat box is open, their words appear in it (whatever the mascot was showing, a greeting or a verse, steps
+        // aside). If it is closed it stays closed.
+        setStep((s) => (s === "hidden" ? s : "chat"));
+        setMinimized(false);
+        stick.current = true;
+      }
+    },
+    onCommand: (text) => {
+      setHeldVoice(false); // (the answer it was giving is dropped when the new one starts)
+      setFollowUp(false);
+      setLiveWords("");
+      setAwaiting(WAKE.conversation); // when the answer is finished, listen for the next message
+      void send(text.slice(0, MAX_SPOKEN), true);
+    },
+    onGiveUp: () => setMissed(true),
+    onIdle: () => setFollowUp(false), // the conversation went quiet
+    onStopped: (message) => {
+      // the microphone is blocked or missing: nothing to listen with (the browser remembers a "no", so it won't ask again)
+      setHandsFree(false);
+      setWakeProblem(message);
+    },
+  });
+  const hearing = wake.phase === "command";
+  // Is the visitor talking to it? With the chat box open it goes to its perch (so the box opens where it always has); by
+  // voice, with the box closed, it stops where it is and listens; otherwise it is free to wander.
+  const engaged: "none" | "voice" | "chat" = step !== "hidden" ? "chat" : hearing || busy || awaiting || heldVoice || voiceOn ? "voice" : "none";
+  const roam = useRoam({ target: header, surname: surnameEl, mood, posture: mood ? POSTURE[mood] : "stand", engaged, still: !mascot.roam });
+  const wakeHold = wake.hold;
+  const wakeCancel = wake.cancel;
+  const wakeEnd = wake.end;
+  const wakeResume = wake.resume;
+
+  // A conversation: once the mascot has finished answering (the text is all in, and the voice has stopped), it listens
+  // for the next message without needing the phrase. A short quiet spell first, so it doesn't catch its own voice fading.
+  useEffect(() => {
+    if (!awaiting || busy) return;
+    let quiet = 0;
+    const id = window.setInterval(() => {
+      if (isSpeaking()) {
+        quiet = 0;
+        return;
+      }
+      quiet += 150;
+      if (quiet < 600) return;
+      window.clearInterval(id);
+      setAwaiting(false);
+      if (wakeResume()) {
+        setLiveWords("");
+        setFollowUp(true);
+      }
+    }, 150);
+    return () => window.clearInterval(id);
+  }, [awaiting, busy, wakeResume]);
+
+  // Listening starts by itself when the page opens, so "Hey Claude Code" works without touching anything. The first time,
+  // the browser asks for the microphone; after that it remembers the answer. A visitor who said no is left alone.
+  useEffect(() => {
+    if (!WAKE.enabled) return;
+    let gone = false;
+    const turnOn = () => {
+      if (!gone) setHandsFree(true);
+    };
+    if (!navigator.permissions) {
+      turnOn();
+      return;
+    }
+    navigator.permissions
+      .query({ name: "microphone" as PermissionName })
+      .then((s) => s.state !== "denied" && turnOn())
+      .catch(turnOn); // (this browser can't tell in advance: just try)
+    return () => {
+      gone = true;
+    };
+  }, [WAKE.enabled]);
+
+  // Only one thing can use the microphone at a time: the wake listener steps aside while the microphone button is in use
+  const listeningNow = useRef(false);
+  useEffect(() => {
+    listeningNow.current = listening;
+    if (listening) return;
+    const id = window.setTimeout(() => wakeHold(false), 300);
+    return () => window.clearTimeout(id);
+  }, [listening, wakeHold]);
+  const toggleMic = () => {
+    if (listening) return stopListening();
+    stopSpeaking(); // so the microphone doesn't hear the mascot's own voice
+    typed.current = input;
+    wakeHold(true);
+    window.setTimeout(() => dictation.start(), 200); // (the browser needs a moment to let go of the microphone)
+    window.setTimeout(() => !listeningNow.current && wakeHold(false), 6000); // it never started: give the microphone back
+  };
 
   // the visitor's voice choice is remembered
   useEffect(() => {
@@ -255,9 +496,17 @@ export function NameMascot({ name, className }: { name: string; className?: stri
       const tok = token();
       speak(text, {
         ...VOICE,
+        from: "mascot",
         onSpeech: (e) => {
           if (at !== undefined) heard(tok, at, to, e);
           onEvent?.(e);
+          // Browsers do not let a page speak until the visitor has clicked or tapped it once. Someone who only used their voice
+          // would get silence, with the chat box closed: so it opens, the answer can be read, and it says what to do.
+          if (e.type === "error") {
+            setVoiceBlocked(true);
+            setStep((s) => (s === "hidden" ? "chat" : s));
+            setMinimized(false);
+          } else if (e.type === "start") setVoiceBlocked(false);
         },
       });
     },
@@ -296,8 +545,14 @@ export function NameMascot({ name, className }: { name: string; className?: stri
     setPos({ x: 0, y: 0 }); // it opens in its usual place next time
     setStep("hidden");
     stopSpeaking();
+    stopListening();
+    wakeEnd(); // closing the mascot ends the conversation
+    setHeldVoice(false);
+    setAwaiting(false);
+    setFollowUp(false);
+    setMissed(false);
     abort.current?.abort();
-  }, []);
+  }, [stopListening, wakeEnd]);
 
   // Optional (mascot.autoGreet, off by default): greet by itself once per visit. (Browsers only allow speech after the visitor has
   // clicked or tapped something, so this first greeting may be silent; everything after a click is spoken.)
@@ -399,19 +654,21 @@ export function NameMascot({ name, className }: { name: string; className?: stri
    * Reads verses aloud: the reference, then the words (a long passage: the first few verses, the rest is on screen).
    * Each verse appears on screen as the voice starts reading it.
    */
-  const readVerses = (list: VerseLookup[], intro = "") => {
+  const readVerses = (list: VerseLookup[], intro = "", alreadyNamed: boolean[] = []) => {
     const showUpTo = (k: number) => (e: SpeechEvent) => {
       if (e.type === "start" || e.type === "error") setUnits((u) => Math.max(u, k));
     };
     if (intro) say(intro, { queue: true, at: 0 });
     let base = 0;
-    for (const v of list) {
+    for (const [k, v] of list.entries()) {
       if ("error" in v) {
         say(verseTrouble(v), { queue: true, onEvent: showUpTo(base + 1) });
         base += 1;
         continue;
       }
-      if (!intro) say(`${v.reference}.`, { queue: true }); // (with an intro, the reference was just said)
+      // (with an intro, or when the mascot's own sentence already said it, "Here is Psalm 23:1-4", the reference was just said:
+      // saying it again would be a repeat)
+      if (!intro && !alreadyNamed[k]) say(`${v.reference}.`, { queue: true });
       v.verses.slice(0, 6).forEach((x, j) => say(x.text, { queue: true, onEvent: showUpTo(base + j + 1) }));
       if (v.verses.length > 6) say("… and more on the screen.", { queue: true, onEvent: showUpTo(base + v.verses.length) });
       base += v.verses.length;
@@ -431,15 +688,29 @@ export function NameMascot({ name, className }: { name: string; className?: stri
   useEffect(() => {
     const el = bodyRef.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
-  }, [reveal.n, units, cards, history, step]);
+  }, [reveal.n, units, cards, history, step, hearing, liveWords]);
 
   // The visitor writes to the mascot: it reads the message and answers through the AI, in its own caring voice.
-  const send = async (raw: string) => {
+  const send = async (raw: string, bySpeech = false) => {
     const text = raw.trim();
-    if (!text || busy) return;
+    // (a spoken message is never dropped because the answer it interrupted has not finished clearing: that one was cancelled)
+    if (!text || (busy && !bySpeech)) return;
+    if (bySpeech) {
+      // the same spoken message twice in a row, a moment apart, is one message heard twice (not two questions): it would
+      // get the same answer said twice
+      const same = lastSpoken.current.text === text.toLowerCase() && Date.now() - lastSpoken.current.at < 4000;
+      lastSpoken.current = { text: text.toLowerCase(), at: Date.now() };
+      if (same) return;
+      abort.current?.abort();
+    }
+    const mine = ++request.current; // (only the newest request may say it is finished)
+    stopListening();
+    wakeCancel(); // (typed it instead of saying it: stop listening for the rest of a spoken message)
+    setHeldVoice(false);
+    setMissed(false);
     setInput("");
     setMinimized(false);
-    setStep("chat");
+    setStep((s) => (s === "hidden" ? s : "chat")); // (said out loud with the chat box closed: it stays closed, the mascot just answers)
     stick.current = true;
 
     // the same filter as the chat: bad words, spam, harmful requests get a kind, instant answer and are never sent
@@ -448,13 +719,17 @@ export function NameMascot({ name, className }: { name: string; className?: stri
       const msg = moderationMessage(why, site.name) ?? "Let's keep it kind. 🙂";
       // kept out of the conversation sent to the AI, so one blocked message doesn't get every later message blocked too
       setHistory((h): Msg[] =>
-        [...h, { role: "user" as const, content: text, local: true }, { role: "assistant" as const, content: msg, local: true }].slice(-8),
+        [...cutLast(h), { role: "user" as const, content: text, local: true }, { role: "assistant" as const, content: msg, local: true }].slice(-8),
       );
       setCards([]);
       begin(voiced());
       say(msg, { at: 0 });
       return;
     }
+
+    // What did they mean, and how do they feel? The mascot feels it too (lib/nlp.ts works it out, lib/mood.ts moves the mood)
+    const a = analyze(text);
+    feel(a);
 
     setCards([]);
     stopSpeaking();
@@ -465,12 +740,18 @@ export function NameMascot({ name, className }: { name: string; className?: stri
     // The visitor typed a reference ("John 3:16", "Psalm 23"): look it up straight away, no AI needed.
     const direct = findReference(text);
     if (direct) {
+      const own = moodRef.current;
+      if (own) {
+        moodShine(own, Date.now()); // (God's word: it is glad and it shines)
+        syncMood();
+        showEmote("sparkle");
+      }
       setHistory((h): Msg[] =>
-        [...h, { role: "user" as const, content: text, local: true }, { role: "assistant" as const, content: "", local: true }].slice(-8),
+        [...cutLast(h), { role: "user" as const, content: text, local: true }, { role: "assistant" as const, content: "", local: true }].slice(-8),
       );
       setBusy(true);
       const found = await lookUp(direct, controller.signal);
-      setBusy(false);
+      if (request.current === mine) setBusy(false);
       if ("error" in found && found.error === "aborted") return;
       // "Here's Psalms 23:" with the proper name, or nothing when it wasn't found (the card explains)
       const intro = "error" in found ? "" : `Here's ${found.reference}:`;
@@ -485,7 +766,22 @@ export function NameMascot({ name, className }: { name: string; className?: stri
       return;
     }
 
-    const next: Msg[] = [...history, { role: "user" as const, content: text }].slice(-8);
+    // Simple things (a hello, a thank-you, "how are you?", "sit down") are answered at once, without the AI: it is faster, and
+    // the answer fits how the mascot feels. Anything else goes to the AI.
+    const quick = mascot.quickReplies ? quickReply(a, mood ?? "happy", new Date().getHours()) : null;
+    if (quick) {
+      setHistory((h): Msg[] => [...cutLast(h), { role: "user" as const, content: text }, { role: "assistant" as const, content: quick.text }].slice(-8));
+      if (quick.command) roam.command(quick.command); // "sit down", "go for a walk"...
+      const s = moodRef.current;
+      if (s) {
+        moodSay(s, analyze(quick.text), Date.now());
+        syncMood();
+      }
+      say(quick.text, { at: 0 });
+      return;
+    }
+
+    const next: Msg[] = [...cutLast(history), { role: "user" as const, content: text }].slice(-8);
     setHistory([...next, { role: "assistant", content: "" }]);
     setBusy(true);
     let answerText = "";
@@ -496,13 +792,31 @@ export function NameMascot({ name, className }: { name: string; className?: stri
         copy[copy.length - 1] = { role: "assistant", content: t };
         return copy;
       });
+    // If the AI says nothing for a long while the request is given up on, so a stuck connection can not freeze the
+    // conversation (the mascot would otherwise wait for it for ever and never listen again)
+    let timedOut = false;
+    let stall: number | undefined;
+    const watch = () => {
+      window.clearTimeout(stall);
+      stall = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, REQUEST_STALL);
+    };
+    watch();
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           mode: "mascot",
-          messages: next.filter((m) => m.content && !m.local).map(({ role, content }) => ({ role, content })),
+          // how the mascot feels, and how the visitor seems to feel (worked out here, see lib/nlp.ts), so the answer has the right tone
+          mood: mood ?? undefined,
+          feeling: a.emotion !== "neutral" ? a.emotion : undefined,
+          // (an answer the visitor interrupted is sent as far as it got, marked, so "continue" can pick it up from there)
+          messages: next
+            .filter((m) => m.content && !m.local)
+            .map(({ role, content, cut }) => ({ role, content: cut ? `${content} … [the visitor interrupted you here]` : content })),
         }),
         signal: controller.signal,
       });
@@ -516,6 +830,8 @@ export function NameMascot({ name, className }: { name: string; className?: stri
       for (;;) {
         const { done: end, value } = await reader.read();
         if (end) break;
+        if (request.current !== mine) break; // (a newer message has taken over: this answer is not wanted any more)
+        watch();
         answerText += decoder.decode(value, { stream: true });
         update(answerText);
         // speak each sentence as soon as it is complete ([[references]] are read as plain references); the words on
@@ -529,25 +845,44 @@ export function NameMascot({ name, className }: { name: string; className?: stri
       }
       const clean = withoutMarkers(answerText);
       if (spoken < clean.length) say(clean.slice(spoken), { queue: true, at: spoken });
+      // what it just said lifts or lowers it a little too (it is hard to say something kind and not feel it)
+      const own = moodRef.current;
+      if (own) {
+        moodSay(own, analyze(clean), Date.now());
+        syncMood();
+      }
 
       // The AI only chose the references; the exact King James text is fetched here and shown below its words.
       const refs = markedReferences(answerText);
       if (refs.length) {
         const found = await Promise.all(refs.map((r) => lookUp(r, controller.signal)));
-        const shown = found.filter((f) => !("error" in f && f.error === "aborted"));
+        // which references the mascot's own sentence already said out loud ("Here is Psalm 23:1-4, a comfort for you")
+        const spokenWords = withoutMarkers(answerText).toLowerCase();
+        const kept = found
+          .map((f, i) => ({ f, named: spokenWords.includes(refs[i].toLowerCase()) }))
+          .filter(({ f }) => !("error" in f && f.error === "aborted"));
+        const shown = kept.map(({ f }) => f);
         setCards(shown);
         setUnits(voiced() ? 0 : Infinity);
-        readVerses(shown);
+        readVerses(
+          shown,
+          "",
+          kept.map(({ named }) => named),
+        );
       }
     } catch (e) {
-      if ((e as Error).name !== "AbortError") {
-        const msg = (e as Error).message || TROUBLE.upstream;
-        update(msg);
-        begin(voiced());
-        say(msg, { at: 0 });
+      // (an abort is the visitor interrupting: nothing to say. A timeout is a real problem.)
+      if ((e as Error).name !== "AbortError" || timedOut) {
+        const msg = timedOut ? TROUBLE.upstream : (e as Error).message || TROUBLE.upstream;
+        if (!answerText) {
+          update(msg);
+          begin(voiced());
+          say(msg, { at: 0 });
+        }
       }
     } finally {
-      setBusy(false);
+      window.clearTimeout(stall);
+      if (request.current === mine) setBusy(false);
     }
   };
 
@@ -610,11 +945,8 @@ export function NameMascot({ name, className }: { name: string; className?: stri
   const btn =
     "rounded-full border border-g300 px-3 py-1.5 text-[12px] font-medium text-ink transition-colors duration-200 hover:border-ink max-lg:py-2.5";
   const iconBtn = "grid size-7 place-items-center rounded-md text-g400 transition-colors hover:bg-g100 hover:text-ink max-lg:size-9";
-  const lastReply = [...history].reverse().find((m) => m.role === "assistant");
-  const lastQuestion = [...history].reverse().find((m) => m.role === "user");
-  // the reply as far as the voice has got (all of it at once when the voice is off)
-  const replyFull = lastReply ? withoutMarkers(lastReply.content) : "";
-  const replyShown = voice && canSpeak ? replyFull.slice(0, reveal.n) : replyFull;
+  // what the mascot is doing (waving hello, when it has just been greeted, unless it is on the move or asleep)
+  const shownPose: Pose = waving && roam.pose !== "walk" && roam.pose !== "hop" && roam.pose !== "sleep" ? "wave" : roam.pose;
   // verses already read out (all of them when nothing is being read)
   let counted = 0;
 
@@ -628,18 +960,6 @@ export function NameMascot({ name, className }: { name: string; className?: stri
           className="pointer-events-none absolute block font-pixel text-[clamp(2.1rem,8vw,2.6rem)] leading-none"
           style={{ left: spot.left, top: spot.top, width: spot.width, height: "1em" }}
         >
-          {/* the mascot, sitting on the letters; click it to talk */}
-          <button
-            type="button"
-            onClick={() => (step === "hidden" ? greet() : close())}
-            aria-label={step === "hidden" ? "Say hi to the mascot" : "Close the mascot's message"}
-            aria-expanded={step !== "hidden"}
-            className="mascot-pop pointer-events-auto absolute right-[0.55em] cursor-pointer rounded-md p-0.5 focus-visible:outline-offset-1"
-            style={{ bottom: "calc(100% - 15px)" }}
-          >
-            <Mascot waving={waving} talking={reveal.talking && step !== "hidden"} />
-          </button>
-
           {step !== "hidden" && (
             <span
               role="status"
@@ -675,9 +995,9 @@ export function NameMascot({ name, className }: { name: string; className?: stri
                 >
                   <span
                     aria-hidden
-                    className={`size-1.5 shrink-0 rounded-full transition-colors ${reveal.talking ? "animate-pulse bg-ink" : "bg-g300"}`}
+                    className={`size-1.5 shrink-0 rounded-full transition-colors ${(reveal.talking && !heldVoice) || hearing ? "animate-pulse bg-ink" : heldVoice ? "bg-ink" : "bg-g300"}`}
                   />
-                  {reveal.talking ? "Speaking" : "Mascot"}
+                  {hearing ? "Listening" : reveal.talking ? "Speaking" : "Mascot"}
                 </button>
                 <span className="flex items-center">
                   {canSpeak && !minimized && (
@@ -755,16 +1075,39 @@ export function NameMascot({ name, className }: { name: string; className?: stri
                   </>
                 )}
 
+                {/* The conversation. Everything said so far stays: an answer the visitor interrupted is cut where they interrupted
+                    it. What they are saying now appears at the end while the mascot listens. */}
                 {step === "chat" && (
                   <>
-                    {lastQuestion && (
-                      <span className="mb-3 ml-auto block w-fit max-w-[88%] break-words rounded-2xl rounded-br-md bg-g100 px-3 py-1.5 text-[12.5px] leading-[1.5] text-g700">
-                        {lastQuestion.content}
-                      </span>
-                    )}
-                    <span className="block whitespace-pre-wrap break-words">
-                      {replyShown || (busy || replyFull ? <span className="text-g400">Thinking…</span> : null)}
-                    </span>
+                    {history.map((m, i) => {
+                      if (m.role === "user") {
+                        return (
+                          <span
+                            key={i}
+                            className="mb-3 ml-auto block w-fit max-w-[88%] break-words rounded-2xl rounded-br-md bg-g100 px-3 py-1.5 text-[12.5px] leading-[1.5] text-g700"
+                          >
+                            {m.content}
+                          </span>
+                        );
+                      }
+                      const isLast = i === history.length - 1;
+                      const full = withoutMarkers(m.content);
+                      // the newest answer appears as far as the voice has got (all of it at once when the voice is off)
+                      const text = isLast && !m.cut && voice && canSpeak ? full.slice(0, reveal.n) : full;
+                      if (!text) {
+                        return isLast && !m.cut && (busy || full) ? (
+                          <span key={i} className="mb-3 block text-g400">
+                            Thinking…
+                          </span>
+                        ) : null;
+                      }
+                      return (
+                        <span key={i} className="mb-3 block whitespace-pre-wrap break-words">
+                          {text}
+                          {m.cut && <span className="text-g400"> …</span>}
+                        </span>
+                      );
+                    })}
 
                     {/* the verses, with the exact King James text, each one appearing as it is read */}
                     {cards.map((c, i) => {
@@ -772,11 +1115,11 @@ export function NameMascot({ name, className }: { name: string; className?: stri
                       counted += "error" in c ? 1 : c.verses.length;
                       if (start >= units) return null;
                       return "error" in c ? (
-                        <span key={i} className="mt-3 block text-[12px] text-g500">
+                        <span key={i} className="mb-3 block text-[12px] text-g500">
                           {verseTrouble(c)}
                         </span>
                       ) : (
-                        <span key={i} className="mt-3 block rounded-xl border border-g200 bg-g50 p-3">
+                        <span key={i} className="mb-3 block rounded-xl border border-g200 bg-g50 p-3">
                           <span className="micro mb-1.5 block text-g500">
                             {c.reference} · KJV{c.truncated ? " · first 40 verses" : ""}
                           </span>
@@ -795,12 +1138,30 @@ export function NameMascot({ name, className }: { name: string; className?: stri
                         </span>
                       );
                     })}
+
+                    {/* the visitor is talking (the phrase was heard, or they spoke over the mascot): their words appear as they are said */}
+                    {hearing && liveWords && (
+                      <span className="mb-3 ml-auto block w-fit max-w-[88%] break-words rounded-2xl rounded-br-md bg-g100 px-3 py-1.5 text-[12.5px] leading-[1.5] text-g700">
+                        {liveWords}
+                      </span>
+                    )}
+                    {hearing && (
+                      <span className="block text-g400">
+                        {followUp && !liveWords ? "Listening… just talk, or say “bye” to stop." : "Listening…"}
+                      </span>
+                    )}
+                    {missed && !hearing && (
+                      <span className="block text-g500">
+                        I didn&apos;t hear anything. Say “{WAKE.phrase}” and I&apos;ll listen again.
+                      </span>
+                    )}
                   </>
                 )}
               </span>
 
               {/* the visitor can write to the mascot once it has asked how they are */}
               {!minimized && (step === "verse" || step === "chat" || (step === "ask" && done)) && (
+                <>
                 <form
                   className="flex items-center gap-2 border-t border-g200 px-2.5 py-2"
                   onSubmit={(e) => {
@@ -811,11 +1172,25 @@ export function NameMascot({ name, className }: { name: string; className?: stri
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    maxLength={300}
-                    placeholder="Talk to me, or ask for a verse…"
+                    maxLength={MAX_INPUT}
+                    placeholder={listening ? "Listening… say something" : "Talk to me, or ask for a verse…"}
                     aria-label="Write to the mascot"
                     className="min-w-0 flex-1 rounded-lg border border-g200 bg-g50 px-2.5 py-2 text-[12px] outline-none transition-colors placeholder:text-g400 focus:border-g400 max-lg:py-2.5"
                   />
+                  {dictation.supported && (
+                    <button
+                      type="button"
+                      onClick={toggleMic}
+                      aria-pressed={listening}
+                      aria-label={listening ? "Stop listening" : "Speak instead of typing"}
+                      title={listening ? "Stop listening" : "Speak instead of typing"}
+                      className={`grid size-8 shrink-0 place-items-center rounded-lg border transition-colors max-lg:size-10 ${
+                        listening ? "animate-pulse border-ink bg-ink text-bg" : "border-g200 text-g500 hover:border-ink hover:text-ink"
+                      }`}
+                    >
+                      <Icon name="mic" className="size-3.5" />
+                    </button>
+                  )}
                   <button
                     type="submit"
                     disabled={busy || !input.trim()}
@@ -825,11 +1200,73 @@ export function NameMascot({ name, className }: { name: string; className?: stri
                     <Icon name="arrow" className="size-3.5" />
                   </button>
                 </form>
+
+                </>
+              )}
+              {!minimized && (dictation.problem ?? wake.problem ?? wakeProblem ?? (voiceBlocked ? BLOCKED : null)) && (
+                <span role="alert" className="block px-3.5 pb-2.5 text-[11.5px] leading-[1.45] text-g500">
+                  {dictation.problem ?? wake.problem ?? wakeProblem ?? BLOCKED}
+                </span>
               )}
             </span>
           )}
         </span>
       )}
+
+      {/* The mascot. It lives on the intro: it perches on the surname (where its chat box opens), sitting or standing as its mood
+          says, and wanders around the portrait. It is drawn over the whole intro (a portal into it), so that it can walk over the
+          picture. Click it to talk. */}
+      {header &&
+        mood &&
+        roam.ready &&
+        createPortal(
+          <div ref={roam.ref} className="pointer-events-none absolute left-0 top-0 z-40" style={{ willChange: "transform" }}>
+            <button
+              type="button"
+              onClick={() => {
+                const s = moodRef.current;
+                if (s) {
+                  moodPet(s, Date.now()); // being clicked cheers it up
+                  syncMood();
+                  showEmote("heart");
+                }
+                if (step !== "hidden") return close();
+                // In the middle of a conversation by voice, clicking the mascot just opens the chat box (with everything said so
+                // far); it does not interrupt with a greeting.
+                if (history.length || hearing || busy || heldVoice || isSpeaking()) {
+                  setMinimized(false);
+                  setStep("chat");
+                  stick.current = true;
+                } else greet();
+              }}
+              aria-label={step === "hidden" ? "Say hi to the mascot" : "Close the mascot's message"}
+              aria-expanded={step !== "hidden"}
+              data-pose={shownPose}
+              data-mood={mood}
+              className="mascot-pop pointer-events-auto relative block cursor-pointer rounded-md p-0.5 focus-visible:outline-offset-1"
+            >
+              <MascotSprite
+                pose={shownPose}
+                mood={mood}
+                mouth={mouth}
+                emote={emote}
+                radiant={radiant}
+                face={roam.face}
+              />
+              {/* the microphone is live: a small dot, so it is never listening without it showing */}
+              {handsFree && wake.phase !== "off" && (
+                <span
+                  aria-hidden
+                  title={`Listening for “${WAKE.phrase}”`}
+                  className={`absolute right-0 top-0 size-2 rounded-full border border-bg ${
+                    hearing ? "animate-pulse bg-[#D97757]" : wake.phase === "paused" ? "bg-g300" : "bg-ink"
+                  }`}
+                />
+              )}
+            </button>
+          </div>,
+          header,
+        )}
     </div>
   );
 }

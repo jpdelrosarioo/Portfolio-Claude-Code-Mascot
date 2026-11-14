@@ -236,6 +236,57 @@ export const mascot = {
   enabled: true,
   /** Open and greet by itself once per visit. Off: the mascot only speaks when someone clicks it. */
   autoGreet: false,
+  /**
+   * The mascot lives on the intro. It perches on your name, where its chat box opens, and there it always either SITS or
+   * STANDS, as its mood says (cheerful, excited, curious and proud mascots stand; calm, sleepy, sad and worried ones sit). The
+   * mood comes from the time of day and from what the visitor says (lib/nlp.ts reads how they feel and what they mean), and it
+   * settles back by itself. With roam: true it also walks about, but only along the TOP edges of three things: the top of
+   * your portrait, the top of your name and the top of your intro text (never over the middle of the picture, never down its
+   * sides). It walks between them when they are level, hops down and leaps back up when they are not, hops and dances when it
+   * is excited, dozes at night, and goes back to its perch when someone talks to it. false: it stays on the name.
+   */
+  roam: true,
+  /**
+   * Simple things (a hello, a thank-you, goodbye, "how are you?", "who are you?", a compliment, and orders like "sit down" or "go
+   * for a walk") are answered at once, without the AI, in a way that fits how the mascot feels. false: the AI answers everything.
+   */
+  quickReplies: true,
+  /**
+   * Hands-free: the visitor says "Hey Claude Code" and the mascot answers out loud. The chat box does not open by itself
+   * (the visitor clicks the mascot to see it); everything works by voice without it. It needs a browser with speech
+   * recognition (Chrome, Edge, Safari). In Chrome and Edge the browser's speech service hears the audio while it listens,
+   * and a small dot on the mascot shows when it does.
+   * It listens by itself as soon as the page opens (the browser asks for the microphone the first time and remembers the
+   * answer): there is no button to press. enabled: false removes the feature.
+   */
+  wakeWord: {
+    enabled: true,
+    phrase: "Hey Claude Code",
+    /** How long (seconds) the mascot waits after the visitor stops talking before it answers (it answers sooner when the
+     *  browser itself says the sentence is over). */
+    pauseSeconds: 1.5,
+    /**
+     * A conversation: after the phrase, the mascot answers out loud and then keeps listening, so the visitor can carry on
+     * talking without saying the phrase again. It ends when the visitor says "bye" or "that's all", goes quiet for
+     * followUpSeconds, or closes the mascot. false: the phrase is needed for every message.
+     */
+    conversation: true,
+    followUpSeconds: 12,
+    /**
+     * The visitor can talk over the mascot, just like talking to a person: the moment the microphone is clearly louder than
+     * it is while the mascot speaks alone (about a quarter of a second), the mascot's voice and the words following it STOP,
+     * in the middle of the word, and the mascot LISTENS. Whatever the visitor says (a question, a new topic, even just
+     * "stop") is their message: when they stop talking it answers that instead of what it was saying, and the conversation
+     * goes on. The interrupted answer is NOT lost: it stays in the chat, cut where they interrupted it, and the AI knows
+     * where. Saying "continue" / "go on" / "carry on what you were saying" right away makes the voice go on from the
+     * same word; saying it later makes the mascot pick that answer up from where it stopped. (If they said nothing at all,
+     * it was only a noise, and the mascot carries on where it was after a few seconds.)
+     * The mascot's own voice, coming back through the speakers, never counts. The loudness is measured on the device; no
+     * audio is recorded or sent. If it can't be measured, only the phrase interrupts. A very quiet interruption may be
+     * missed; the phrase works then. false: only the phrase (or the buttons) interrupts it.
+     */
+    interrupt: true,
+  },
   greeting: "Hi there! 👋 Welcome to my portfolio.",
   question: "Are you doing okay today?",
   /** Shown when the visitor answers "I'm okay". */

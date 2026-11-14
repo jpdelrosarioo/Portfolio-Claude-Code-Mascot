@@ -2,6 +2,8 @@
 // The voices are the pretrained neural voices that ship with the visitor's device/browser, so there is nothing to
 // host, nothing to pay for, and the text is never sent anywhere. On by default; the visitor can switch it off in the chat.
 
+import { buildTimeline, levelAt, wordAt, type Timeline } from "./mouth";
+
 const KEY = "voice";
 
 export function speechSupported(): boolean {
@@ -115,8 +117,64 @@ function clearVoice() {
   chosen = null;
 }
 
+/* ---------- the mouth ---------- */
+// The sentence being spoken right now, with its timetable (see lib/mouth.ts): the mascot's mouth is drawn from it.
+type Track = { part: string; tl: Timeline; rate: number; startAt: number; pausedAt: number; pausedMs: number; startedAt: number };
+let current: Track | null = null;
+let sylMs = 240; // how long a syllable takes at normal speed: corrected to the voice's real pace after every sentence
+
+/** How open the mascot's mouth should be right now (0 closed, 1 wide), following the words the voice is saying. */
+export function mouthLevel(): number {
+  const c = current;
+  if (!c || c.pausedAt) return 0; // between sentences, or held: closed
+  const t = performance.now() - c.startAt;
+  // the voice is still going after the timetable ran out (it speaks slower than expected): a quiet mumble until it stops
+  if (t > c.tl.total) return 0.3 + 0.2 * Math.sin(t / 70);
+  return levelAt(c.tl, t);
+}
+
+let lastQueued = ""; // the last text given to the voice, and when (see `speak`)
+let lastQueuedAt = 0;
+let source = ""; // who gave the voice its text last ("mascot", "chat"...)
+
+/** Who is speaking: whoever asked the voice to say something last. The mascot only reacts to being talked over when it is
+ *  the one speaking, not when the chat box is. */
+export function speechSource(): string {
+  return source;
+}
+
+let lastEventAt = 0; // when the voice last did anything (was given text, started, said a word, finished)
+let held = false; // the voice is paused on purpose (see `pauseSpeaking`)
+
+/** Is the voice speaking? If the browser has lost track of the queue (it can, after a pause and a cancel: the count says
+ *  "speaking" but nothing is playing and no event will ever come), that is noticed, so the mascot does not wait forever
+ *  for a voice that is not there and never listens again. */
 export function isSpeaking(): boolean {
+  if (pending > 0 && !held && speechSupported() && Date.now() - lastEventAt > 2000) {
+    const s = window.speechSynthesis;
+    if (!s.speaking && !s.pending) {
+      generation++; // (whatever the browser still reports for these is stale)
+      pending = 0;
+      current = null;
+      endedAt = Date.now();
+    }
+  }
   return pending > 0;
+}
+
+let endedAt = 0; // when the voice last went quiet
+let said = ""; // the words most recently given to the voice, whoever asked (the mascot, the chat...)
+
+/** What the voice has been saying lately. Anything listening through the microphone uses it to tell the voice's own
+ *  words, coming back through the speakers, from a person talking. */
+export function recentSpeech(): string {
+  return said;
+}
+
+/** Milliseconds since the voice stopped (0 while it is speaking). Its last words can still be coming back through a
+ *  microphone for a moment after it stops. */
+export function msSinceSpeech(): number {
+  return isSpeaking() ? 0 : Date.now() - endedAt;
 }
 
 /** What the voice is doing, so the words on screen can follow it. `fraction` (0–1) is how far through the text given to
@@ -130,7 +188,7 @@ export type SpeechEvent = { type: "start" | "word" | "chunk" | "end" | "error"; 
  *  `onSpeech` reports the voice's progress. */
 export function speak(
   text: string,
-  { pitch = 1, rate = 1.02, onSpeech }: { pitch?: number; rate?: number; onSpeech?: (e: SpeechEvent) => void } = {},
+  { pitch = 1, rate = 1.02, onSpeech, from = "" }: { pitch?: number; rate?: number; onSpeech?: (e: SpeechEvent) => void; from?: string } = {},
 ) {
   if (!speechSupported()) {
     onSpeech?.({ type: "error", fraction: 0 });
@@ -138,7 +196,16 @@ export function speak(
   }
   const clean = cleanForSpeech(text);
   if (!clean) return; // nothing to hear (only an emoji, say)
+  // the very same sentence given to the voice twice in a row, while it is still talking, is a repeat by mistake
+  if (pending > 0 && clean === lastQueued && Date.now() - lastQueuedAt < 1500) return;
+  lastQueued = clean;
+  lastQueuedAt = Date.now();
+  source = from;
+  if (pending === 0 && Date.now() - endedAt > 10000) said = ""; // a new speech: forget the last one
+  said = `${said} ${clean}`.slice(-2000);
   const synth = window.speechSynthesis;
+  if (!held && synth.paused) synth.resume(); // (a voice left paused by accident would swallow this)
+  lastEventAt = Date.now();
   const gen = generation;
   const parts = chunks(clean);
   const total = Math.max(1, parts.reduce((n, p) => n + p.length + 1, -1));
@@ -155,26 +222,55 @@ export function speak(
     u.pitch = pitch;
     const live = () => gen === generation; // false once speech was stopped
     const done = () => {
+      lastEventAt = Date.now();
       if (!live()) return;
       pending = Math.max(0, pending - 1);
+      if (pending === 0) endedAt = Date.now();
       emit();
     };
+    // the mouth: this sentence's timetable, started when its first sound plays
+    let track: Track | null = null;
+    const endTrack = (finished: boolean) => {
+      if (!track) return;
+      if (current === track) {
+        current = null; // (the mouth closes the moment the voice stops, whatever the timetable says)
+        // Learn the voice's real pace: if the sentence took longer than the timetable said, a syllable takes longer
+        const real = performance.now() - track.startedAt - track.pausedMs;
+        if (finished && track.tl.total > 600 && real > 400) {
+          sylMs = Math.min(480, Math.max(120, sylMs * (0.5 + 0.5 * (real / track.tl.total))));
+        }
+      }
+      track = null;
+    };
     u.onstart = () => {
-      if (live()) onSpeech?.({ type: i === 0 ? "start" : "chunk", fraction: from / total });
+      lastEventAt = Date.now();
+      if (!live()) return;
+      const now = performance.now();
+      track = { part, tl: buildTimeline(part, sylMs / rate), rate, startAt: now, pausedAt: 0, pausedMs: 0, startedAt: now };
+      current = track;
+      onSpeech?.({ type: i === 0 ? "start" : "chunk", fraction: from / total });
     };
     u.onboundary = (e) => {
+      lastEventAt = Date.now();
       if (!live() || (e.name && e.name !== "word")) return;
+      // The voice says which word it is on: line the mouth up with it right now (this is what keeps it in step with the voice)
+      if (track && current === track && !track.pausedAt) {
+        const w = wordAt(track.tl, e.charIndex);
+        if (w >= 0) track.startAt = performance.now() - track.tl.words[w].t0;
+      }
       let stop = part.indexOf(" ", e.charIndex); // the end of the word being spoken
       if (stop < 0) stop = part.length;
       onSpeech?.({ type: "word", fraction: Math.min(1, (from + stop) / total) });
     };
     u.onend = () => {
       const was = live();
+      endTrack(was);
       done();
       if (was) onSpeech?.({ type: lastPart ? "end" : "chunk", fraction: Math.min(1, (from + part.length) / total) });
     };
     u.onerror = (e) => {
       const was = live();
+      endTrack(false);
       done();
       if (was && e.error !== "canceled" && e.error !== "interrupted") onSpeech?.({ type: "error", fraction: from / total });
     };
@@ -186,8 +282,41 @@ export function speak(
 
 export function stopSpeaking() {
   if (!speechSupported()) return;
+  const synth = window.speechSynthesis;
+  // (Cancelling a voice that is idle does nothing useful, and in some browsers the sentence given to it right afterwards is dropped.)
+  const active = pending > 0 || synth.speaking || synth.pending || synth.paused;
   generation++;
   pending = 0;
-  window.speechSynthesis.cancel();
+  held = false;
+  current = null; // (the mouth closes at once)
+  endedAt = Date.now();
+  lastEventAt = Date.now();
+  if (active) {
+    synth.cancel();
+    synth.resume(); // (a cancelled voice that was paused would otherwise stay silent for the next thing it says)
+  }
   emit();
+}
+
+/** Holds the voice mid-word, so that it can go on from the same place (see `resumeSpeaking`). The words on screen follow
+ *  the voice, so they wait too. */
+export function pauseSpeaking() {
+  // (also between two sentences: the next one is then held too, and goes on with `resumeSpeaking`)
+  if (!speechSupported()) return;
+  held = true;
+  if (current && !current.pausedAt) current.pausedAt = performance.now(); // (the mouth stops with the voice)
+  window.speechSynthesis.pause();
+}
+
+export function resumeSpeaking() {
+  held = false;
+  lastEventAt = Date.now();
+  if (current?.pausedAt) {
+    // (the time it was held does not count: the mouth goes on from the same word)
+    const gone = performance.now() - current.pausedAt;
+    current.startAt += gone;
+    current.pausedMs += gone;
+    current.pausedAt = 0;
+  }
+  if (speechSupported()) window.speechSynthesis.resume();
 }
