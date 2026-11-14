@@ -5,7 +5,7 @@ import { mascot, site, tour } from "@/data/site";
 import { findReference, lookUp, markedReferences, withoutMarkers, type VerseLookup } from "@/lib/bible";
 import { useDictation } from "@/lib/dictation";
 import { useWakeWord } from "@/lib/use-wake-word";
-import { isTouchDevice } from "@/lib/recognition";
+import { isTouchDevice, recognitionClass } from "@/lib/recognition";
 import { play } from "@/lib/sounds";
 import { moderate, moderationMessage } from "@/lib/moderation";
 import { tourSeen, tourWillAutoStart } from "@/lib/tour-state";
@@ -398,6 +398,32 @@ export function NameMascot({ name, className }: { name: string; className?: stri
     },
   });
   const hearing = wake.phase === "command";
+
+  // What the visitor is told about the microphone (it must never be off without saying so, especially on a phone, where nothing
+  // listens until the first tap): a small note at the bottom of the screen while the chat box is closed.
+  const touch = useSyncExternalStore(noSubscribe, isTouchDevice, () => false);
+  const recSupported = useSyncExternalStore(noSubscribe, () => recognitionClass() !== null, () => true);
+  const [justOn, setJustOn] = useState(false);
+  useEffect(() => {
+    if (!handsFree || !touch) return;
+    setJustOn(true);
+    const id = window.setTimeout(() => setJustOn(false), 6000);
+    return () => window.clearTimeout(id);
+  }, [handsFree, touch]);
+  const micHint =
+    !WAKE.enabled || step !== "hidden"
+      ? null
+      : wakeProblem
+        ? `${wakeProblem} Tap me to try again.`
+        : wake.problem
+          ? wake.problem
+          : touch && !recSupported
+            ? `This browser can't listen for “${WAKE.phrase}”. Try Chrome.`
+            : touch && !handsFree
+              ? `Tap anywhere to let me listen, then say “${WAKE.phrase}”.`
+              : justOn && wake.phase === "wake"
+                ? `Listening. Say “${WAKE.phrase}”.`
+                : null;
   // Is the visitor talking to it? With the chat box open it goes to its perch (so the box opens where it always has); by
   // voice, with the box closed, it stops where it is and listens; otherwise it is free to wander.
   const engaged: "none" | "voice" | "chat" = step !== "hidden" ? "chat" : hearing || busy || awaiting || heldVoice || voiceOn ? "voice" : "none";
@@ -1226,6 +1252,27 @@ export function NameMascot({ name, className }: { name: string; className?: stri
         </span>
       )}
 
+      {/* (drawn straight into the page: inside the intro a "fixed" box would be placed by the intro, not by the screen) */}
+      {header &&
+        createPortal(
+          <>
+            {micHint && (
+              <span
+                role="status"
+                className="pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto block w-fit max-w-[22rem] rounded-xl border border-g200 bg-bg px-3.5 py-2 text-center text-[12px] leading-[1.45] text-g700 shadow-lg"
+              >
+                {micHint}
+              </span>
+            )}
+            {wake.log.length > 0 && (
+              <pre className="pointer-events-none fixed left-1 top-1 z-50 m-0 max-w-[96vw] overflow-hidden whitespace-pre-wrap break-words rounded-md bg-black/80 p-1.5 font-mono text-[10px] leading-[1.35] text-white">
+                {wake.log.join("\n")}
+              </pre>
+            )}
+          </>,
+          document.body,
+        )}
+
       {/* The mascot. It lives on the intro: it perches on the surname (where its chat box opens), sitting or standing as its mood
           says, and wanders around the portrait. It is drawn over the whole intro (a portal into it), so that it can walk over the
           picture. Click it to talk. */}
@@ -1272,6 +1319,9 @@ export function NameMascot({ name, className }: { name: string; className?: stri
                 face={roam.face}
               />
               {/* the microphone is live: a small dot, so it is never listening without it showing */}
+              {WAKE.enabled && recSupported && !(handsFree && wake.phase !== "off") && (
+                <span aria-hidden title="Microphone off. Tap me to turn it on" className="absolute right-0 top-0 size-2 rounded-full border border-g400 bg-bg" />
+              )}
               {handsFree && wake.phase !== "off" && (
                 <span
                   aria-hidden

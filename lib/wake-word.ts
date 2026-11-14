@@ -262,6 +262,8 @@ export type WakeOptions = {
   onStopped?: (message: string) => void;
   problems?: Record<string, string>;
   fatal?: ReadonlySet<string>;
+  /** A line about what the recogniser is doing (start, end, errors, what it heard), for finding out why a device does not work. */
+  debug?: (line: string) => void;
 };
 
 type Timer = ReturnType<typeof setTimeout>;
@@ -617,6 +619,7 @@ export function createWakeListener(o: WakeOptions) {
   };
 
   const onError = (code: string) => {
+    o.debug?.(`error: ${code}`);
     if (code === "no-speech" || code === "aborted") return; // normal: nobody spoke
     const message = problems[code] ?? "Something went wrong with the microphone.";
     if (fatal.has(code)) {
@@ -634,19 +637,31 @@ export function createWakeListener(o: WakeOptions) {
     r.lang = o.lang || "en-US";
     r.continuous = true; // keeps listening through pauses until it is stopped
     r.interimResults = true; // the phrase is noticed as it is spoken, not after a sentence ends
-    r.onstart = () => o.onProblem?.(null);
-    r.onresult = (e) => onResult(e.results);
+    r.onstart = () => {
+      o.debug?.("listening");
+      o.onProblem?.(null);
+    };
+    r.onresult = (e) => {
+      if (o.debug && e.results.length) {
+        const last = e.results[e.results.length - 1];
+        o.debug(`heard (${e.results.length}${last.isFinal ? ", final" : ""}): ${last[0].transcript}`);
+      }
+      onResult(e.results);
+    };
     r.onerror = (e) => onError(e.error);
     r.onend = () => {
+      o.debug?.(`ended after ${Date.now() - startedAt} ms${rec === r ? "" : " (on purpose)"}`);
       if (rec === r) onEnd();
     };
     rec = r;
     startedAt = Date.now();
     lastResultAt = startedAt;
     heardAny = false;
+    o.debug?.("starting");
     try {
       r.start();
-    } catch {
+    } catch (err) {
+      o.debug?.(`start() failed: ${String(err)}`);
       rec = null;
       fails++;
       restart = setTimeout(begin, 1000);

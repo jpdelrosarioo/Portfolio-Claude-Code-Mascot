@@ -38,6 +38,8 @@ export function useWakeWord({
 }: { enabled: boolean; phrase: string; followUpMs: number; interrupt: boolean } & Handlers) {
   const [phase, setPhase] = useState<WakePhase>("off");
   const [problem, setProblem] = useState<string | null>(null);
+  // `?micdebug` on the address shows what the recogniser is doing, line by line (to find out why a phone does not work)
+  const [log, setLog] = useState<string[]>([]);
   const latest = useRef(handlers);
   useEffect(() => {
     latest.current = handlers;
@@ -51,7 +53,15 @@ export function useWakeWord({
     // (not on a phone: there the browser gives the microphone to the recogniser or to the meter, not both, and the meter would
     // leave the recogniser deaf. On a phone the phrase interrupts, as the rest of the voice conversation works the same.)
     const meter = interrupt && !isTouchDevice() ? startLevelMeter() : undefined;
+    const debugOn = /[?&]micdebug\b/.test(window.location.search);
     const l = createWakeListener({
+      debug: debugOn
+        ? (line) => {
+            const t = new Date();
+            const stamp = `${String(t.getMinutes()).padStart(2, "0")}:${String(t.getSeconds()).padStart(2, "0")}`;
+            setLog((a) => [...a.slice(-11), `${stamp} ${line}`]);
+          }
+        : undefined,
       meter,
       Rec,
       phrase,
@@ -87,5 +97,5 @@ export function useWakeWord({
   const end = useCallback(() => listener.current?.end(), []);
   const resume = useCallback(() => listener.current?.resume() ?? false, []);
 
-  return { phase: enabled ? phase : "off", problem: enabled ? problem : null, hold, cancel, end, resume };
+  return { phase: enabled ? phase : "off", problem: enabled ? problem : null, log, hold, cancel, end, resume };
 }
