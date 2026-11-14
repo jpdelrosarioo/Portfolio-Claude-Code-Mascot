@@ -264,7 +264,38 @@ export type WakeOptions = {
   fatal?: ReadonlySet<string>;
   /** A line about what the recogniser is doing (start, end, errors, what it heard), for finding out why a device does not work. */
   debug?: (line: string) => void;
+  /**
+   * For phones. Chrome on Android does not report speech the way desktop browsers do: the same sentence can come back as
+   * several results that each repeat what the one before said ("hey", "hey claude", "hey claude code"), and unfinished results
+   * can be marked as final. With this on, those are folded into one growing result, and "final" is not trusted.
+   */
+  mergeResults?: boolean;
+  /** Whatever the recogniser has just heard (the latest words, before any of it is acted on), to show that the microphone hears. */
+  onSound?: (text: string) => void;
 };
+
+const plain = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * Folds results that repeat each other into one: a result that starts with the words of the one before it is the same
+ * sentence, grown (Chrome on Android sends the sentence again every time it adds a word). Nothing is marked final: on a phone
+ * that flag is not reliable, so the pause decides when the message is over.
+ */
+export function mergeCumulative(res: ArrayLike<RecognitionResult>): RecognitionResult[] {
+  const out: RecognitionResult[] = [];
+  let prev = "";
+  for (let i = 0; i < res.length; i++) {
+    const t = res[i][0].transcript;
+    const p = plain(t);
+    if (!p) continue;
+    const grown = out.length > 0 && (p === prev || p.startsWith(`${prev} `));
+    const item: RecognitionResult = { isFinal: false, 0: { transcript: t } };
+    if (grown) out[out.length - 1] = item;
+    else out.push(item);
+    prev = p;
+  }
+  return out;
+}
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -642,11 +673,13 @@ export function createWakeListener(o: WakeOptions) {
       o.onProblem?.(null);
     };
     r.onresult = (e) => {
-      if (o.debug && e.results.length) {
-        const last = e.results[e.results.length - 1];
-        o.debug(`heard (${e.results.length}${last.isFinal ? ", final" : ""}): ${last[0].transcript}`);
+      const list = o.mergeResults ? mergeCumulative(e.results) : e.results;
+      if (list.length) {
+        const last = list[list.length - 1];
+        o.debug?.(`heard (${e.results.length} raw, ${list.length} used${last.isFinal ? ", final" : ""}): ${last[0].transcript}`);
+        o.onSound?.(last[0].transcript);
       }
-      onResult(e.results);
+      onResult(list);
     };
     r.onerror = (e) => onError(e.error);
     r.onend = () => {

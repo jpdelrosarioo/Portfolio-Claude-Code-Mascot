@@ -46,14 +46,17 @@ export function isTouchDevice(): boolean {
 }
 
 /** Why the microphone was refused, in words that say what to do (a page that is not https can never use the microphone; phones have their own switches). */
-function blocked(): string {
+export function blockedMessage(): string {
   if (typeof window !== "undefined" && !window.isSecureContext)
     return "The microphone only works on a secure (https) page. This page is not one, so the browser won't give me the microphone.";
   if (typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent))
     return "The microphone is blocked. Allow it for this site in Safari (the aA button), and make sure Siri & Dictation is on in Settings.";
+  if (typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent))
+    return "The microphone is blocked. In Chrome tap the ⋮ menu, then ⓘ (or the lock icon) → Permissions → Microphone → Allow, and check that Chrome may use the microphone in Android Settings → Apps → Chrome → Permissions. Then reload the page.";
   if (isTouchDevice()) return "The microphone is blocked. Tap the lock icon by the address, allow the microphone for this site, then tap me again.";
   return "The microphone is blocked. Allow it in your browser's address bar to talk to me.";
 }
+const blocked = blockedMessage;
 
 /** What to tell the visitor when the microphone fails (undefined: nothing worth saying, e.g. they just stayed quiet). */
 export const MIC_PROBLEMS: Record<string, string> = {

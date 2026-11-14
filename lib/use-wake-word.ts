@@ -40,6 +40,7 @@ export function useWakeWord({
   const [problem, setProblem] = useState<string | null>(null);
   // `?micdebug` on the address shows what the recogniser is doing, line by line (to find out why a phone does not work)
   const [log, setLog] = useState<string[]>([]);
+  const [sound, setSound] = useState<{ text: string; at: number } | null>(null); // the latest words the microphone caught
   const latest = useRef(handlers);
   useEffect(() => {
     latest.current = handlers;
@@ -55,6 +56,8 @@ export function useWakeWord({
     const meter = interrupt && !isTouchDevice() ? startLevelMeter() : undefined;
     const debugOn = /[?&]micdebug\b/.test(window.location.search);
     const l = createWakeListener({
+      mergeResults: isTouchDevice(),
+      onSound: (text) => setSound({ text, at: Date.now() }),
       debug: debugOn
         ? (line) => {
             const t = new Date();
@@ -97,5 +100,5 @@ export function useWakeWord({
   const end = useCallback(() => listener.current?.end(), []);
   const resume = useCallback(() => listener.current?.resume() ?? false, []);
 
-  return { phase: enabled ? phase : "off", problem: enabled ? problem : null, log, hold, cancel, end, resume };
+  return { phase: enabled ? phase : "off", problem: enabled ? problem : null, log, sound, hold, cancel, end, resume };
 }

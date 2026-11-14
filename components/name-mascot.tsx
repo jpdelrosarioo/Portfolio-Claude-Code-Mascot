@@ -5,7 +5,7 @@ import { mascot, site, tour } from "@/data/site";
 import { findReference, lookUp, markedReferences, withoutMarkers, type VerseLookup } from "@/lib/bible";
 import { useDictation } from "@/lib/dictation";
 import { useWakeWord } from "@/lib/use-wake-word";
-import { isTouchDevice, recognitionClass } from "@/lib/recognition";
+import { blockedMessage, isTouchDevice, recognitionClass } from "@/lib/recognition";
 import { play } from "@/lib/sounds";
 import { moderate, moderationMessage } from "@/lib/moderation";
 import { tourSeen, tourWillAutoStart } from "@/lib/tour-state";
@@ -298,6 +298,8 @@ export function NameMascot({ name, className }: { name: string; className?: stri
   // talking for the pause time, the message is sent (see lib/wake-word.ts). It starts by itself when the page opens.
   const WAKE = mascot.wakeWord;
   const [handsFree, setHandsFree] = useState(false);
+  const tapped = useRef(false); // the visitor has tapped the page (phones may only start the microphone after a tap)
+  const [autoFailed, setAutoFailed] = useState(false); // the phone would not start the microphone by itself: it needs a tap
   const pauseSec = WAKE.pauseSeconds;
   const [missed, setMissed] = useState(false); // the phrase was heard but nothing followed
   const [heldVoice, setHeldVoice] = useState(false); // the voice is held because someone is talking over it: the mascot is listening
@@ -394,6 +396,11 @@ export function NameMascot({ name, className }: { name: string; className?: stri
     onStopped: (message) => {
       // the microphone is blocked or missing: nothing to listen with (the browser remembers a "no", so it won't ask again)
       setHandsFree(false);
+      // A phone that refuses before anyone has tapped may just want a tap first (it is not necessarily blocked): ask for one
+      if (isTouchDevice() && !tapped.current) {
+        setAutoFailed(true);
+        return;
+      }
       setWakeProblem(message);
     },
   });
@@ -410,18 +417,30 @@ export function NameMascot({ name, className }: { name: string; className?: stri
     const id = window.setTimeout(() => setJustOn(false), 6000);
     return () => window.clearTimeout(id);
   }, [handsFree, touch]);
+  // On a phone the chat box is usually closed, so what the microphone catches is shown for a few seconds: "I hear: ..." says the
+  // microphone works (and what it makes of the words); if you speak and it never appears, the phone's microphone is not reaching me.
+  const [soundShown, setSoundShown] = useState(false);
+  const soundAt = wake.sound?.at;
+  useEffect(() => {
+    if (!soundAt) return;
+    setSoundShown(true);
+    const id = window.setTimeout(() => setSoundShown(false), 6000);
+    return () => window.clearTimeout(id);
+  }, [soundAt]);
   const micHint =
     !WAKE.enabled || step !== "hidden"
       ? null
       : wakeProblem
-        ? `${wakeProblem} Tap me to try again.`
+        ? `${wakeProblem}${touch ? " Tap anywhere to try again." : " Tap me to try again."}`
         : wake.problem
           ? wake.problem
           : touch && !recSupported
             ? `This browser can't listen for “${WAKE.phrase}”. Try Chrome.`
-            : touch && !handsFree
+            : touch && !handsFree && autoFailed
               ? `Tap anywhere to let me listen, then say “${WAKE.phrase}”.`
-              : justOn && wake.phase === "wake"
+              : touch && soundShown && wake.sound?.text
+                ? `I hear: “${wake.sound.text.slice(-90)}”`
+                : justOn && wake.phase === "wake"
                 ? `Listening. Say “${WAKE.phrase}”.`
                 : null;
   // Is the visitor talking to it? With the chat box open it goes to its perch (so the box opens where it always has); by
@@ -470,23 +489,31 @@ export function NameMascot({ name, className }: { name: string; className?: stri
       }
       navigator.permissions
         .query({ name: "microphone" as PermissionName })
-        .then((s) => s.state !== "denied" && turnOn())
+        .then((s) => {
+          if (s.state !== "denied") turnOn();
+          else if (isTouchDevice() && !gone) setWakeProblem(blockedMessage()); // (a phone says what to switch on; a computer leaves a visitor who said no alone)
+        })
         .catch(turnOn); // (this browser can't tell in advance: just try)
     };
-    // A phone only lets a page start the microphone after a tap (and asks for it then), so there it starts at the first tap
-    if (isTouchDevice()) {
-      const first = () => check();
-      window.addEventListener("pointerup", first, { once: true, capture: true });
-      return () => {
-        gone = true;
-        window.removeEventListener("pointerup", first, true);
-      };
-    }
-    check();
+    check(); // (a phone too: it tries by itself, and asks for a tap only if the phone refuses)
     return () => {
       gone = true;
     };
   }, [WAKE.enabled]);
+
+  // If a phone refuses to start the microphone by itself, it starts at a tap instead: any tap on the page, until it is
+  // listening. (A blocked microphone is found out by trying, and then the visitor is told what to switch on.)
+  useEffect(() => {
+    if (!WAKE.enabled || handsFree || !touch) return;
+    const tap = () => {
+      tapped.current = true;
+      setAutoFailed(false);
+      setWakeProblem(null);
+      setHandsFree(true);
+    };
+    window.addEventListener("pointerup", tap, true);
+    return () => window.removeEventListener("pointerup", tap, true);
+  }, [WAKE.enabled, handsFree, touch]);
 
   // Only one thing can use the microphone at a time: the wake listener steps aside while the microphone button is in use
   const listeningNow = useRef(false);
@@ -1292,6 +1319,8 @@ export function NameMascot({ name, className }: { name: string; className?: stri
                 }
                 // (tapping the mascot also tries the microphone again if it was off: a tap is what phones need to allow it)
                 if (WAKE.enabled && !handsFree) {
+                  tapped.current = true;
+                  setAutoFailed(false);
                   setWakeProblem(null);
                   setHandsFree(true);
                 }
