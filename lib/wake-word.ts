@@ -234,8 +234,10 @@ export type WakeOptions = {
    * shows it, `onCommand` gets it), and the mascot answers it instead of what it was saying. Needs `speaking` and `meter`.
    */
   onPause?: () => void;
-  /** It was only a noise (nobody said anything): the voice goes on from where it was. */
+  /** They said "continue" (or only the mascot's own voice was caught): the voice goes on from where it was. */
   onResume?: () => void;
+  /** They talked over the mascot but nothing could be made out: the old answer is dropped (not resumed) and the mascot listens. */
+  onDropped?: () => void;
   /** How long to wait for them to start speaking after they talked over the mascot, before deciding it was only a noise. */
   interruptListenMs?: number;
   /** After a noise, how long before the microphone getting louder can stop the mascot again. */
@@ -385,12 +387,19 @@ export function createWakeListener(o: WakeOptions) {
     if (interrupted) {
       voiceHeld = false;
       evidenceSince = 0;
-      if (!text || isContinue(text) || looksLikeEcho(text)) {
-        // nobody said anything (it was only a noise, or the mascot's own voice, caught again), or they said "continue": the
-        // mascot goes on with what it was saying
+      if (text && (isContinue(text) || looksLikeEcho(text))) {
+        // They said "continue" (or what was caught was only the mascot's own voice, coming back): it goes on with what it was saying
         cooldownUntil = Date.now() + interruptCooldownMs;
         conversing = true;
         o.onResume?.();
+        return;
+      }
+      if (!text) {
+        // They spoke over it but no words could be made out (the recogniser can be deaf while the voice plays). Like Siri, it
+        // does NOT carry on with the old answer by itself: that one is over, and it listens. Only "continue" picks it up again.
+        cooldownUntil = Date.now() + interruptCooldownMs;
+        conversing = true;
+        o.onDropped?.();
         return;
       }
       // They said something: that is what the mascot answers now (the answer it was giving is dropped when this one
@@ -488,8 +497,9 @@ export function createWakeListener(o: WakeOptions) {
    *      mascot's voice is held at once (onPause), in the middle of the word. Its own voice can never do this: it is only
    *      louder than itself when a person adds to it.
    *   2. From then on what they say is taken down as their message (no phrase needed). When they stop talking for the
-   *      pause time it is sent (onCommand), and the mascot answers it instead of what it was saying. If they said nothing
-   *      at all (it was only a noise), the mascot carries on where it was (onResume). */
+   *      pause time it is sent (onCommand), and the mascot answers it instead of what it was saying (a new topic). Only
+   *      "continue" (onResume) makes it go on with the old answer; if nothing could be made out of what they said, the old
+   *      answer is dropped and the mascot just listens (onDropped). It never carries on by itself, like Siri. */
 
   // The microphone's loudness, noted while the mascot talks (that is what the mascot's voice alone sounds like to it)
   const stopMeasuring = () => {

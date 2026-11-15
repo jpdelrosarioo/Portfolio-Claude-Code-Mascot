@@ -279,8 +279,8 @@ export const mascot = {
      * "stop") is their message: when they stop talking it answers that instead of what it was saying, and the conversation
      * goes on. The interrupted answer is NOT lost: it stays in the chat, cut where they interrupted it, and the AI knows
      * where. Saying "continue" / "go on" / "carry on what you were saying" right away makes the voice go on from the
-     * same word; saying it later makes the mascot pick that answer up from where it stopped. (If they said nothing at all,
-     * it was only a noise, and the mascot carries on where it was after a few seconds.)
+     * same word; saying it later makes the mascot pick that answer up from where it stopped. (If nothing
+     * could be made out of what they said, the mascot still stays stopped and listens, like Siri: it never carries on by itself.)
      * Two things tell it that someone is talking: the microphone getting louder than the mascot's voice alone, and words the
      * recogniser hears that are not the mascot's own (this is what works on a phone, where the loudness can't be measured, and
      * for quiet voices). Speaking up also stops it while it is still working on an answer. The mascot's own voice, coming back

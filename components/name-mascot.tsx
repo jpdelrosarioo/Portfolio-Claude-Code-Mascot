@@ -368,8 +368,20 @@ export function NameMascot({ name, className }: { name: string; className?: stri
       setFollowUp(false);
       setLiveWords("");
     },
+    onDropped: () => {
+      // They talked over it but nothing could be made out. Like Siri, it does not carry on with the old answer: that one stays
+      // in the chat, cut where it stopped (so "continue" can pick it up), and the mascot listens for what they say next.
+      setHistory(cutLast);
+      stopSpeaking();
+      abort.current?.abort();
+      setBusy(false);
+      setHeldVoice(false);
+      setLiveWords("");
+      setCards([]);
+      setAwaiting(WAKE.conversation);
+    },
     onResume: () => {
-      // It was only a noise: the mascot goes on where it was, and listens again when it is done
+      // They said "continue": the mascot goes on where it was, and listens again when it is done
       resumeSpeaking();
       setHeldVoice(false);
       setLiveWords("");

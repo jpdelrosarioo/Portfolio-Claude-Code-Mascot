@@ -23,6 +23,8 @@ type Handlers = {
   onPause?: () => void;
   /** It was only a noise (nobody said anything): the voice goes on from where it was. */
   onResume?: () => void;
+  /** They talked over the mascot but nothing could be made out: the old answer is dropped and the mascot listens. */
+  onDropped?: () => void;
   /** Listening stopped for good (microphone blocked or missing): switch the setting back off. */
   onStopped?: (message: string) => void;
 };
@@ -80,6 +82,7 @@ export function useWakeWord({
       // (always: without a loudness meter, as on a phone, the words it hears can still tell that someone is talking over it)
       onPause: interrupt ? () => latest.current.onPause?.() : undefined,
       onResume: () => latest.current.onResume?.(),
+      onDropped: () => latest.current.onDropped?.(),
       onPhase: setPhase,
       onWake: () => latest.current.onWake?.(),
       onHeard: (t) => latest.current.onHeard?.(t),
